@@ -1,0 +1,28 @@
+# 依存とビルド成果物
+node_modules
+dist
+dist-ssr
+dev-dist
+*.local
+
+# ログ
+logs
+*.log
+npm-debug.log*
+
+# テスト成果物
+coverage/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# 目視確認用のスクリーンショット（成果物なので追跡しない）
+/shots/
+
+# エディタ / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.sw?

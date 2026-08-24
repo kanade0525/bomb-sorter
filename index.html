@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover で safe-area-inset-* を使えるようにする -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0d0f14" />
+    <meta name="description" content="色と形でボムを仕分けるスマホ向けアクションゲーム" />
+
+    <!-- CSP は本番ビルド時に vite.config.ts のプラグインが差し込む。
+         ここに直接書くと dev サーバの HMR（インラインスタイルと WebSocket）が
+         止まってしまうため、開発中は入れない。 -->
+
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BombSorter" />
+    <!-- apple-touch-icon は manifest から読まれないので HTML に必ず書く -->
+    <link rel="apple-touch-icon" href="/bomb-sorter/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/bomb-sorter/favicon.svg" />
+
+    <title>Bomb Sorter</title>
+  </head>
+  <body>
+    <h1 class="sr-only">Bomb Sorter — 色と形でボムを仕分けるゲーム</h1>
+
+    <div id="stage">
+      <canvas id="game" role="application" aria-label="ボム仕分けゲームの画面"></canvas>
+
+      <!-- ボタンは Canvas に描かず実 button にする。
+           キーボード操作・フォーカスリング・読み上げが無料で付いてくる。 -->
+      <div id="hud-buttons">
+        <!-- 中身のアイコン（Material Symbols のインライン SVG）は icons.ts が差し込む -->
+        <button id="btn-mute" type="button" aria-label="音を消す" aria-pressed="false"></button>
+        <button id="btn-pause" type="button" aria-label="一時停止"></button>
+      </div>
+
+      <div id="overlay" class="overlay">
+        <!-- 画面ごとの内容は overlay.ts が差し替える -->
+      </div>
+
+      <div id="toast" class="toast" hidden>
+        <span id="toast-text">新しいバージョンがあります</span>
+        <button id="toast-action" type="button">更新する</button>
+      </div>
+    </div>
+
+    <div id="sr-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    <div id="sr-alert" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

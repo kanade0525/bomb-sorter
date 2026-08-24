@@ -1,0 +1,70 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pages のデプロイは同時に走らせられない。進行中のものは殺さず待たせる
+# （cancel-in-progress: true にすると中途半端な状態で詰まることがある）
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ビルド
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: actions/configure-pages@v6
+
+      - run: npm ci
+
+      # テストが落ちているものを公開しない。E2E は CI 側に任せる
+      - name: check
+        run: npm run check
+
+      - name: ビルド
+        run: npx vite build
+
+      - name: 成果物のパスを検証
+        run: |
+          test -f dist/index.html
+          test -f dist/.nojekyll
+          grep -q '/bomb-sorter/assets/' dist/index.html \
+            || { echo "::error::base が反映されていない"; exit 1; }
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    name: 公開
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # deploy-pages が要求する最小権限。
+    # id-token は OIDC でブランチを検証させるために必要
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,10 +1,10 @@
 import { TIMING } from '../core/constants'
 import { zoneAt } from '../game/hittest'
-import type { World } from '../core/types'
+import type { BombKind, World } from '../core/types'
 import { drawBomb, type DrawFlags } from './draw-bomb'
 import { drawFxBack, drawFxFront, shakeOffset, type Fx } from './draw-fx'
 import { drawHud } from './draw-hud'
-import { drawZone } from './draw-zone'
+import { drawZone, type ZoneHover } from './draw-zone'
 import { COLOR } from './palette'
 import { applyTransform, type Viewport } from './viewport'
 
@@ -43,14 +43,18 @@ export function render(ctx: CanvasRenderingContext2D, input: RenderInput): void 
   ctx.roundRect(f.x, f.y, f.w, f.h, 14)
   ctx.stroke()
 
-  // どのゾーンの上に指があるか。掴んでいるボムの中心で判定する
-  const hovered = new Set<string>()
+  // どのゾーンの上に指があるか。掴んでいるボムの中心で判定し、
+  // 形が合っているかどうかまで見る（合っていないゾーンを強調すると誤投入へ誘ってしまう）
+  const hover = new Map<BombKind, ZoneHover>()
   for (const b of world.bombs) {
     if (b.grabbedBy === null) continue
     const z = zoneAt(layout, b.x, b.y)
-    if (z) hovered.add(z.kind)
+    if (!z) continue
+    const next: ZoneHover = z.kind === b.kind ? 'match' : 'wrong'
+    // 2 本指で片方が正解なら正解を優先して見せる
+    if (next === 'match' || !hover.has(z.kind)) hover.set(z.kind, next)
   }
-  for (const z of layout.zones) drawZone(ctx, z, hovered.has(z.kind), t)
+  for (const z of layout.zones) drawZone(ctx, z, hover.get(z.kind) ?? 'none', t)
 
   drawFxBack(ctx, fx, layout)
 

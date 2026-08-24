@@ -1,7 +1,7 @@
 import { BOMB, FUSE } from '../core/constants'
 import { clamp } from '../core/math'
 import type { Bomb } from '../core/types'
-import { styleOf } from './palette'
+import { COLOR, styleOf } from './palette'
 
 export interface DrawFlags {
   reducedMotion: boolean
@@ -43,9 +43,13 @@ export function drawBomb(ctx: CanvasRenderingContext2D, b: Bomb, flags: DrawFlag
   const dx = Math.sin(b.wobble) * wobbleAmp * 0.35
   const dy = Math.cos(b.wobble * 0.8) * wobbleAmp * 0.35
 
+  // 掴んでいる間は少し大きくする。ボムの直径は指の接地とほぼ同じなので、
+  // 何も変えないと本体が指の下に完全に隠れて「掴めたか」が分からない
+  const held = b.grabbedBy !== null ? 1.12 : 1
+
   ctx.save()
   ctx.translate(b.x + dx, b.y + dy)
-  ctx.scale(pulse * vanishScale, pulse * vanishScale)
+  ctx.scale(pulse * vanishScale * held, pulse * vanishScale * held)
   if (b.vanish > 0) ctx.globalAlpha = clamp(1 - b.vanish, 0, 1)
 
   const r = BOMB.RADIUS
@@ -82,9 +86,13 @@ export function drawBomb(ctx: CanvasRenderingContext2D, b: Bomb, flags: DrawFlag
     ctx.fill()
   }
 
-  // 残量アーク。角度で読めるので色に依存しない
+  // 残量アーク。角度で読めるので色に依存しない。
+  // 緑・橙・赤は輝度が近く、赤緑色覚やグレースケールでは段階が読めないので、
+  // 太さと破線という「形」でも警告段階が分かるようにしてある。
   const showFuse = flags.showFuse !== false
-  const arcW = flags.reducedMotion ? 7 : 4
+  const critical = ratio < FUSE.CRITICAL_RATIO
+  const warn = ratio < FUSE.WARN_RATIO
+  const arcW = critical ? 9 : warn ? 6 : 4
   if (showFuse) {
     ctx.lineWidth = arcW
     ctx.lineCap = 'butt'
@@ -93,11 +101,13 @@ export function drawBomb(ctx: CanvasRenderingContext2D, b: Bomb, flags: DrawFlag
     ctx.arc(0, 0, r + arcW, 0, Math.PI * 2)
     ctx.stroke()
 
-    ctx.strokeStyle =
-      ratio < FUSE.CRITICAL_RATIO ? '#ff5d52' : ratio < FUSE.WARN_RATIO ? '#ffb03a' : '#8ce99a'
+    ctx.strokeStyle = critical ? COLOR.danger : warn ? '#ffb03a' : '#8ce99a'
+    // 残りわずかのときは破線にする。色が読めなくても質感の違いで分かる
+    if (critical) ctx.setLineDash([7, 5])
     ctx.beginPath()
     ctx.arc(0, 0, r + arcW, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio)
     ctx.stroke()
+    ctx.setLineDash([])
   }
 
   // 導火線。物理的に短くなるので、残量が形でも分かる
@@ -141,6 +151,17 @@ export function drawBomb(ctx: CanvasRenderingContext2D, b: Bomb, flags: DrawFlag
     ctx.beginPath()
     ctx.arc(tipX, tipY, 3.4 * spark, 0, Math.PI * 2)
     ctx.fill()
+  }
+
+  // 掴んでいる印。指からはみ出す位置に明るいリングを出す
+  if (b.grabbedBy !== null) {
+    ctx.strokeStyle = 'rgba(232,236,244,0.85)'
+    ctx.lineWidth = 2
+    ctx.setLineDash([4, 4])
+    ctx.beginPath()
+    ctx.arc(0, 0, r + arcW + 7, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
   }
 
   ctx.restore()

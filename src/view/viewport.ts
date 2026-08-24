@@ -42,9 +42,23 @@ export function readInsets(probe: HTMLElement): Insets {
  * devicePixelRatio は 2 で打ち止めにする（3x 端末での塗り面積は 2.25 倍になり、
  * 見た目の差はほぼ無いのに描画コストだけが跳ねる）。
  */
-export function measureViewport(canvas: HTMLCanvasElement, probe: HTMLElement): Viewport {
-  const cssW = canvas.clientWidth || window.innerWidth
-  const cssH = canvas.clientHeight || window.innerHeight
+export function measureViewport(
+  canvas: HTMLCanvasElement,
+  probe: HTMLElement,
+  /**
+   * safe-area の上書き（CSS px）。
+   * env() はブラウザの自動化からは設定できないので、ノッチ端末のレイアウトを
+   * 手元で検分するために URL から差し込めるようにしてある。
+   */
+  insetsOverride?: Insets
+): Viewport {
+  // 位置とサイズは同じ 1 回の getBoundingClientRect から取る。
+  // clientWidth（整数）と rect（小数）を混ぜると、拡大率と逆変換で食い違いが出る。
+  // レイアウト前で 0 のときだけウィンドウ幅に逃げるが、その状態は ResizeObserver が
+  // すぐ拾って測り直すので、古い値のまま残ることはない
+  const box = canvas.getBoundingClientRect()
+  const cssW = box.width || window.innerWidth
+  const cssH = box.height || window.innerHeight
   const dpr = Math.min(window.devicePixelRatio || 1, RENDER.MAX_DPR)
   const fit = computeFit(cssW, cssH)
 
@@ -54,7 +68,7 @@ export function measureViewport(canvas: HTMLCanvasElement, probe: HTMLElement): 
   if (canvas.height !== h) canvas.height = h
 
   // CSS px の inset を論理単位へ変換してからレイアウトに渡す
-  const cssInsets = readInsets(probe)
+  const cssInsets = insetsOverride ?? readInsets(probe)
   const insets: Insets = {
     top: cssInsets.top / fit.scale,
     right: cssInsets.right / fit.scale,
@@ -62,7 +76,6 @@ export function measureViewport(canvas: HTMLCanvasElement, probe: HTMLElement): 
     left: cssInsets.left / fit.scale,
   }
 
-  const box = canvas.getBoundingClientRect()
   return {
     fit,
     layout: computeLayout(fit.logicalW, fit.logicalH, insets),

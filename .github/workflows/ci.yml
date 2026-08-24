@@ -48,8 +48,11 @@ jobs:
           if grep -qE '(src|href)="/(assets|icons|favicon)' dist/index.html; then
             echo "::error::base の付いていない絶対パスが残っている"; exit 1
           fi
+          # .webmanifest を require すると Node が JS として読もうとするので、
+          # 必ず読み込んでから JSON.parse する
           node -e "
-            const m = require('./dist/manifest.webmanifest');
+            const fs = require('node:fs');
+            const m = JSON.parse(fs.readFileSync('./dist/manifest.webmanifest', 'utf8'));
             if (m.start_url !== '/bomb-sorter/') throw new Error('start_url が違う: ' + m.start_url);
             if (m.scope !== '/bomb-sorter/') throw new Error('scope が違う: ' + m.scope);
             for (const i of m.icons) if (i.src.startsWith('/')) throw new Error('アイコンは相対パスで書く: ' + i.src);

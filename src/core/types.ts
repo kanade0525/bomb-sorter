@@ -65,7 +65,7 @@ export interface Layout {
 export type Effect =
   | { t: 'grab' }
   | { t: 'ok'; x: number; y: number; kind: BombKind; gain: number; combo: number }
-  | { t: 'miss'; x: number; y: number; reason: DeathReason }
+  | { t: 'miss'; x: number; y: number; kind: BombKind; reason: DeathReason }
   | { t: 'combo-lost' }
   | { t: 'warn'; level: 1 | 2 }
   | { t: 'spawn'; x: number; y: number }

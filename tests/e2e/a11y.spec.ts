@@ -1,17 +1,45 @@
 import { expect, test } from '@playwright/test'
 import { advanceBy, layout, ready, startGame, state } from '../helpers/game'
 
+async function expectTapTarget(page: import('@playwright/test').Page, name: string) {
+  const btn = page.getByRole('button', { name })
+  await expect(btn).toBeVisible()
+  const box = await btn.boundingBox()
+  expect(box!.width, `${name} の幅`).toBeGreaterThanOrEqual(44)
+  expect(box!.height, `${name} の高さ`).toBeGreaterThanOrEqual(44)
+}
+
 test('操作ボタンに読み上げ用の名前があり、タップ領域が 44px 以上ある', async ({ page }) => {
   await page.goto('./?seed=1&frozen=1')
   await ready(page)
 
-  for (const name of ['音を消す', '一時停止', 'はじめる']) {
-    const btn = page.getByRole('button', { name })
-    await expect(btn).toBeVisible()
-    const box = await btn.boundingBox()
-    expect(box!.width, `${name} の幅`).toBeGreaterThanOrEqual(44)
-    expect(box!.height, `${name} の高さ`).toBeGreaterThanOrEqual(44)
-  }
+  // タイトルでは、音は切りたくなる場面なのでミュートは押せるままにしてある。
+  // 一時停止はここでは意味を持たないので出さない
+  await expectTapTarget(page, '音を消す')
+  await expectTapTarget(page, 'はじめる')
+  await expect(page.getByRole('button', { name: '一時停止' })).toBeHidden()
+
+  await startGame(page)
+  await expectTapTarget(page, '一時停止')
+  await expectTapTarget(page, '音を消す')
+})
+
+test('ポーズ中は「つづける」が 1 つだけで、ミュートは押せる', async ({ page }) => {
+  await page.goto('./?seed=1&frozen=1')
+  await ready(page)
+  await startGame(page)
+
+  await page.getByRole('button', { name: '一時停止' }).click()
+  await advanceBy(page, 40)
+
+  // 同じ機能のボタンが 2 つ並ばないこと
+  await expect(page.getByRole('button', { name: '一時停止' })).toBeHidden()
+  await expect(page.getByRole('button', { name: '再開する' })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'つづける' })).toBeVisible()
+
+  // 音を切りたくなるのはまさにこの場面なので、ミュートは生きている
+  await page.getByRole('button', { name: '音を消す' }).click()
+  await expect(page.getByRole('button', { name: '音を出す' })).toBeVisible()
 })
 
 test('見出しと lang 属性がある', async ({ page }) => {

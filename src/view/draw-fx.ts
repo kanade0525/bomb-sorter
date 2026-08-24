@@ -175,10 +175,15 @@ export function drawFxFront(ctx: CanvasRenderingContext2D, fx: Fx, layout: Layou
   for (const p of fx.pops) {
     const k = 1 - p.life / p.max
     ctx.globalAlpha = clamp(1 - k * k, 0, 1)
-    ctx.fillStyle = p.color
     ctx.font = `700 ${p.size}px ui-monospace, SFMono-Regular, Menlo, monospace`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
+    // 赤いボムの上でもゾーンの上でも読めるように、暗い縁取りを先に置く
+    ctx.lineWidth = 3
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = 'rgba(13,15,20,0.9)'
+    ctx.strokeText(p.text, p.x, p.y - k * 34)
+    ctx.fillStyle = p.color
     ctx.fillText(p.text, p.x, p.y - k * 34)
   }
 

@@ -2,10 +2,9 @@ import './style.css'
 
 import { createAudio } from './audio/audio'
 import { createLoop } from './app/loop'
-import { TIMING } from './core/constants'
 import type { Command, World } from './core/types'
 import { installTestHook } from './debug/testhook'
-import { applyCommand, stepWorld } from './game/step'
+import { applyCommand, releaseAllDrags, stepWorld } from './game/step'
 import { createWorld } from './game/world'
 import { createKeyboardInput } from './input/keyboard'
 import { createPointerInput } from './input/pointer'
@@ -17,6 +16,7 @@ import { createFx, fxMiss, fxPop, fxRing, fxShake, updateFx } from './view/draw-
 import { COLOR, styleOf } from './view/palette'
 import { render } from './view/renderer'
 import { createSafeAreaProbe, measureViewport, type Viewport } from './view/viewport'
+import type { Insets } from './view/layout'
 import { createOverlay } from './ui/overlay'
 import { setIcon } from './ui/icons'
 
@@ -28,6 +28,7 @@ function must<T extends Element>(selector: string): T {
 }
 
 const canvas = must<HTMLCanvasElement>('#game')
+const hudButtons = must<HTMLElement>('#hud-buttons')
 const overlayRoot = must<HTMLElement>('#overlay')
 const muteBtn = must<HTMLButtonElement>('#btn-mute')
 const pauseBtn = must<HTMLButtonElement>('#btn-pause')
@@ -44,12 +45,36 @@ const params = new URLSearchParams(location.search)
 const seedParam = Number(params.get('seed'))
 const seed = Number.isFinite(seedParam) && seedParam !== 0 ? seedParam : Date.now() & 0x7fffffff
 
-const probe = createSafeAreaProbe()
-let vp: Viewport = measureViewport(canvas, probe)
+/**
+ * safe-area を URL から差し込めるようにしている（`?insets=47,0,34,0`）。
+ * env() はブラウザの自動化から設定できないため、これが無いとノッチ端末の
+ * レイアウトを手元で検分できず、実機を触るまで気づけない。
+ */
+function parseInsets(raw: string | null): Insets | undefined {
+  if (!raw) return undefined
+  const parts = raw.split(',').map((v) => Number.parseFloat(v))
+  if (parts.length !== 4 || parts.some((v) => !Number.isFinite(v))) return undefined
+  const [top, right, bottom, left] = parts as [number, number, number, number]
+  const c = (v: number) => Math.min(Math.max(v, 0), 80)
+  return { top: c(top), right: c(right), bottom: c(bottom), left: c(left) }
+}
 
+const insetsOverride = parseInsets(params.get('insets'))
+const probe = createSafeAreaProbe()
+let vp: Viewport = measureViewport(canvas, probe, insetsOverride)
+
+// 保存データは可変で持ち、書き戻しは persist() 一本に集約する。
+// 起動時のスナップショットを使い回すと plays が巻き戻る
 const save = loadSave()
 let best = save.best
 let bestCombo = save.bestCombo
+
+function persist(): void {
+  save.best = best
+  save.bestCombo = bestCombo
+  save.muted = audio.isMuted()
+  saveSave(save)
+}
 
 const fx = createFx()
 const audio = createAudio()
@@ -60,15 +85,24 @@ const overlay = createOverlay(overlayRoot)
 
 const pointer = createPointerInput(canvas, () => vp)
 
+const startedAt = performance.now()
 let renderTime = 0
 let prevPhase = world.phase
 let srTimer = 0
 let recorded = false
 
+/**
+ * 操作の入口。ボタンでもキーでも必ずここを通す。
+ * 「今の画面で押したらこうなってほしい」の解決をここ 1 か所に閉じ込める
+ * （ポーズ中の pause は再開、ゲームオーバー中の開始はリトライ）。
+ */
 function command(cmd: Command): void {
   audio.unlock()
   audio.play('ui')
-  applyCommand(world, cmd, vp.layout)
+  let resolved: Command = cmd
+  if (cmd === 'pause' && world.phase === 'paused') resolved = 'resume'
+  if (cmd === 'start' && world.phase === 'gameover') resolved = 'restart'
+  applyCommand(world, resolved, vp.layout)
 }
 
 function intensity(): number {
@@ -87,16 +121,16 @@ function drainEffects(): void {
         if (e.combo >= 3) audio.play('combo', e.combo)
         const st = styleOf(e.kind)
         fxRing(fx, e.x, e.y, st.zoneEdge)
-        fxPop(fx, e.x, e.y, `+${e.gain}`, COLOR.accent)
-        if (e.combo >= 3) fxPop(fx, e.x, e.y - 22, `${e.combo} れんさ`, st.bodyLight, 13)
+        // 落とした点は指の真下なので、文字は上へ逃がす。
+        // 色を形依存にすると square の暗い色で読めなくなるので固定色にする
+        fxPop(fx, e.x, e.y - 58, `+${e.gain}`, COLOR.text)
+        if (e.combo >= 3) fxPop(fx, e.x, e.y - 84, `${e.combo} れんさ`, COLOR.accent, 13)
         break
       }
-      case 'miss': {
-        const kind = world.bombs.find((b) => b.x === e.x && b.y === e.y)?.kind ?? 'round'
-        fxMiss(fx, e.x, e.y, kind, flags.reducedMotion)
+      case 'miss':
+        fxMiss(fx, e.x, e.y, e.kind, flags.reducedMotion)
         audio.play('explode')
         break
-      }
       case 'combo-lost':
         audio.play('combo-lost')
         break
@@ -119,7 +153,8 @@ function onPhaseChanged(from: string, to: string): void {
       const merged = mergeBest({ ...save, best, bestCombo }, world.score, world.bestCombo)
       best = merged.best
       bestCombo = merged.bestCombo
-      saveSave({ ...merged, muted: audio.isMuted() })
+      save.plays = merged.plays
+      persist()
     }
     srAlert.textContent = `ゲームオーバー。スコア ${world.score}、ハイスコア ${best}`
   }
@@ -157,9 +192,21 @@ function step(dt: number): void {
 }
 
 function draw(): void {
-  renderTime += TIMING.FIXED_DT
+  // フレーム数で数えると 120Hz 端末で装飾のアニメが 2 倍速になるので実時間を使う。
+  // ゲームの進行には一切関与しない、破線が流れる速さなどの見た目専用の時刻
+  renderTime = (performance.now() - startedAt) / 1000
   render(ctx2d, { world, fx, vp, flags, best, t: renderTime })
   overlay.update(world, best, bestCombo)
+
+  // モーダルが出ている間の上部ボタンの扱い。
+  //
+  // 全部を inert にすると、タイトルやポーズ中にミュートが押せなくなる。
+  // 音を切りたくなるのはまさにその場面なので、ミュートは常に押せるままにする。
+  // 一方ポーズボタンは、ポーズ中は「つづける」と同じ機能のボタンが 2 つある状態を
+  // 作ってしまい、タイトルとゲームオーバーでは意味を持たないので隠す。
+  const modal = world.phase === 'title' || world.phase === 'paused' || world.phase === 'gameover'
+  if (pauseBtn.hidden !== modal) pauseBtn.hidden = modal
+  hudButtons.classList.toggle('is-dimmed', modal)
 }
 
 const loop = createLoop(step, draw)
@@ -167,16 +214,37 @@ const loop = createLoop(step, draw)
 // ---- リサイズ ----
 let resizeTimer = 0
 function relayout(): void {
-  vp = measureViewport(canvas, probe)
+  vp = measureViewport(canvas, probe, insetsOverride)
+  // 座標系が変わった時点で、掴んでいた指と判定の前提が食い違う。
+  // 手放しておかないと、指を動かしていないのに離した瞬間に誤爆死する
+  releaseAllDrags(world, vp.layout)
   // レイアウトが変わったので、シミュレーションの端数は捨てて矛盾を残さない
   loop.resetClock()
+  syncHudButtonPlacement()
   draw()
+}
+
+/**
+ * 上部のボタンを、レターボックスの内側（実際に描かれているゲーム画面の右上）へ寄せる。
+ *
+ * ボタンはビューポート基準の DOM なので、何もしないと iPad の横向きで
+ * ゲーム画面から 250px 以上離れた黒帯の中に浮いてしまう。
+ */
+function syncHudButtonPlacement(): void {
+  const { offsetX, offsetY, scale } = vp.fit
+  // タップ領域は 44px を割らせたくないので、拡大方向にだけ少し追従させる
+  const s = Math.min(Math.max(scale, 1), 1.4)
+  hudButtons.style.transformOrigin = 'top right'
+  hudButtons.style.transform = `translate(${-offsetX}px, ${offsetY}px) scale(${s})`
 }
 function scheduleRelayout(): void {
   window.clearTimeout(resizeTimer)
   // iOS はツールバーの出入りで何度も発火するのでデバウンスする
   resizeTimer = window.setTimeout(relayout, 100)
 }
+// canvas 自身の箱の変化を見る。起動直後にまだレイアウトされていない一瞬や、
+// window の resize が飛ばない変化（親要素の都合など）もこれで拾える
+new ResizeObserver(scheduleRelayout).observe(canvas)
 window.addEventListener('resize', scheduleRelayout)
 window.addEventListener('orientationchange', scheduleRelayout)
 window.visualViewport?.addEventListener('resize', scheduleRelayout)
@@ -212,16 +280,14 @@ function toggleMute(): void {
   audio.unlock()
   audio.setMuted(!audio.isMuted())
   syncMuteButton()
-  saveSave({ best, bestCombo, muted: audio.isMuted(), plays: save.plays })
+  persist()
 }
 
 audio.setMuted(save.muted)
 syncMuteButton()
 syncPauseButton()
 muteBtn.addEventListener('click', toggleMute)
-pauseBtn.addEventListener('click', () => {
-  command(world.phase === 'paused' ? 'resume' : 'pause')
-})
+pauseBtn.addEventListener('click', () => command('pause'))
 
 overlay.onCommand(command)
 createKeyboardInput({ onCommand: command, onToggleMute: toggleMute })
@@ -263,5 +329,6 @@ installTestHook({
 
 audio.setMode('title')
 onPhaseChanged('title', 'title')
+syncHudButtonPlacement()
 draw()
 if (params.get('frozen') !== '1') loop.start()

@@ -33,7 +33,9 @@ export function computeFit(cssW: number, cssH: number): Fit {
   const h = Math.max(1, cssH)
   const wanted = Math.round((logicalW * h) / w)
   const logicalH = clamp(wanted, FIELD.H_MIN, FIELD.H_MAX)
-  const scale = Math.min(w / logicalW, h / logicalH)
+  // 大画面で無制限に拡大すると、ボムもドラッグ距離も 2 倍近くになって
+  // スマホ向けの操作感から離れる。上限を置いて中央に寄せる
+  const scale = Math.min(w / logicalW, h / logicalH, FIELD.MAX_SCALE)
   return {
     logicalW,
     logicalH,

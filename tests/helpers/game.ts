@@ -59,7 +59,13 @@ async function fire(
   })
 }
 
-/** 論理座標でドラッグする。1 ステップごとにゲームを 1 フレーム進める */
+/**
+ * 論理座標でドラッグする。1 ステップごとにゲームを 1 フレーム進める。
+ *
+ * 進める量を 20ms にしているのは、planSteps が固定タイムステップ（16.67ms）で
+ * 切り捨てるため。16ms を渡すと 0 ステップになる回があり、直前に resetClock が
+ * 走っていた場合（リサイズ直後など）は入力が 1 フレーム処理されずに残る。
+ */
 export async function drag(
   page: Page,
   canvas: Locator,
@@ -70,17 +76,17 @@ export async function drag(
   pointerId = 1
 ): Promise<void> {
   await fire(canvas, 'pointerdown', toClient(fit, from), pointerId)
-  await advance(page, 16)
+  await advance(page, 20)
   for (let i = 1; i <= steps; i++) {
     const p = {
       x: from.x + ((to.x - from.x) * i) / steps,
       y: from.y + ((to.y - from.y) * i) / steps,
     }
     await fire(canvas, 'pointermove', toClient(fit, p), pointerId)
-    await advance(page, 16)
+    await advance(page, 20)
   }
   await fire(canvas, 'pointerup', toClient(fit, to), pointerId)
-  await advance(page, 16)
+  await advance(page, 20)
 }
 
 /** 掴んだまま離さない */
@@ -108,11 +114,11 @@ export async function advance(page: Page, ms: number): Promise<void> {
   await page.evaluate((n) => window.__BOMB_SORTER__!.advance(n), ms)
 }
 
-/** 指定ミリ秒ぶん、16ms 刻みで進める */
+/** 指定ミリ秒ぶん、20ms 刻みで進める（1 回で必ず 1 フレーム以上進む刻み） */
 export async function advanceBy(page: Page, totalMs: number): Promise<void> {
   await page.evaluate((n) => {
     const h = window.__BOMB_SORTER__!
-    for (let i = 0; i < Math.ceil(n / 16); i++) h.advance(16)
+    for (let i = 0; i < Math.ceil(n / 20); i++) h.advance(20)
   }, totalMs)
 }
 

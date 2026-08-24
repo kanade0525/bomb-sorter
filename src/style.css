@@ -75,7 +75,8 @@ canvas#game {
   min-width: 44px;
   min-height: 44px;
   padding: 0;
-  border: 1px solid #2b3040;
+  /* 背景 #12141a に対して約 3:1。#2b3040 では 1.4:1 で枠が見えていなかった */
+  border: 1px solid #575e70;
   border-radius: 12px;
   background: rgba(18, 20, 26, 0.8);
   color: #98a1b5;
@@ -84,6 +85,16 @@ canvas#game {
 
 #hud-buttons button:disabled {
   opacity: 0.4;
+}
+
+/* モーダルが出ている間は主張を弱める。暗幕の上で全輝度のまま残ると、
+   押すべき本命のボタンより先に視線を奪ってしまう */
+#hud-buttons.is-dimmed {
+  opacity: 0.5;
+}
+
+#hud-buttons button[hidden] {
+  display: none;
 }
 
 /* アイコンは currentColor で塗るので、色は button 側の color だけで決まる */
@@ -111,7 +122,8 @@ canvas#game {
   justify-content: center;
   padding: calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 20px)
     calc(env(safe-area-inset-bottom) + 24px) calc(env(safe-area-inset-left) + 20px);
-  background: rgba(13, 15, 20, 0.9);
+  /* 0.9 だと後ろの赤いボムが残光として抜けて、見出しや数字に重なって読みにくかった */
+  background: rgba(13, 15, 20, 0.965);
   z-index: 2;
 }
 
@@ -162,6 +174,13 @@ canvas#game {
   color: #c6cddb;
   font-size: 13px;
   line-height: 1.9;
+}
+
+/* 折り返した 2 行目が「・」と同じ左端から始まると、別の項目に見えてしまう。
+   Noto Sans JP（Android）では折り返すので、ハンギングインデントを入れておく */
+.rules li {
+  padding-left: 1.15em;
+  text-indent: -1.15em;
 }
 
 .rules li::before {
@@ -221,7 +240,8 @@ canvas#game {
 
 .screen button.ghost {
   background: transparent;
-  border: 1px solid #2b3040;
+  /* 背景 #0d0f14 に対して約 3:1。#2b3040 では枠がほとんど見えなかった */
+  border: 1px solid #575e70;
   color: #98a1b5;
 }
 

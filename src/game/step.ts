@@ -8,8 +8,7 @@ import { nextPhase, type PhaseEvent } from './phase'
 import { separateBombs } from './separate'
 import { findSpawnPos, initialVelocity, nextInterval, pickKind } from './spawn'
 import { scoreGain } from './score'
-import { createBomb } from './world'
-import { resetForPlay } from './world'
+import { createBomb, resetForPlay, resetForTitle } from './world'
 
 /**
  * ゲームの進行。
@@ -54,6 +53,11 @@ export function stepWorld(
   w.time += dt
 
   handleInput(w, actions, layout)
+  // 誤投入で死んだらここで抜ける。続けて drift を走らせると、ゾーンの中にある
+  // ボムがフィールド内へ clamp されて、爆発を出した座標と実際の位置が食い違う。
+  // コンボ切れや警告音が爆発と同時に鳴るのも防げる
+  if (w.phase !== 'playing') return
+
   updateCombo(w, dt)
   drift(w, dt, layout, driftScale(w.time))
   updateFuse(w, dt)
@@ -61,6 +65,23 @@ export function stepWorld(
   updateVanish(w, dt)
   trySpawn(w, dt, layout)
   separateBombs(w.bombs, layout.field)
+}
+
+/**
+ * 進行中のドラッグをすべて手放す。ゾーン判定はしない。
+ *
+ * レイアウトが変わると、掴んでいるボムの論理座標はそのままなのに、指の論理座標は
+ * 新しい座標系で読み直される。iOS でツールバーが出て高さが 100px 縮んだ瞬間、
+ * 指を一切動かしていないのに「ボムがゾーンの中にある」状態になり、離すだけで
+ * 誤爆死した（6/6 再現）。座標系が変わったら判定の前提が崩れているので、
+ * 通知でドラッグが途切れたときと同じ扱い（ミスにしない）へ落とす。
+ */
+export function releaseAllDrags(w: World, layout: Layout): void {
+  for (const b of w.bombs) {
+    if (b.grabbedBy === null) continue
+    b.grabbedBy = null
+    returnToField(b, layout)
+  }
 }
 
 /** 外からの指示。フェーズが変わったときだけ副作用（初期化）を行う */
@@ -75,10 +96,7 @@ export function applyCommand(w: World, cmd: Command, layout: Layout): void {
   // ready に「入り直す」のが新規プレイなのか復帰なのかで、初期化するかどうかが変わる
   const isFreshStart = before === 'title' || before === 'gameover' || cmd === 'restart'
   if (after === 'ready' && isFreshStart) resetForPlay(w, layout)
-  if (after === 'title') {
-    // タイトルへ戻るときは飾りのボムを作り直す
-    resetForPlay(w, layout)
-  }
+  if (after === 'title') resetForTitle(w, layout)
 }
 
 function transition(w: World, event: PhaseEvent): void {
@@ -88,10 +106,12 @@ function transition(w: World, event: PhaseEvent): void {
   w.phaseTime = 0
 }
 
-function kill(w: World, reason: DeathReason, x: number, y: number): void {
+function kill(w: World, reason: DeathReason, bomb: Bomb): void {
   if (w.phase !== 'playing') return
   w.deathReason = reason
-  w.effects.push({ t: 'miss', x, y, reason })
+  // 演出側が座標からボムを探し直さなくて済むよう、形もここで渡しておく。
+  // 座標の突き合わせは浮動小数の一致に頼ることになり、必ず取りこぼす
+  w.effects.push({ t: 'miss', x: bomb.x, y: bomb.y, kind: bomb.kind, reason })
   // 掴んでいた指はすべて離させる
   for (const b of w.bombs) b.grabbedBy = null
   transition(w, 'die')
@@ -117,7 +137,10 @@ function dragBounds(layout: Layout): { minX: number; maxX: number; minY: number;
     minX: r,
     maxX: layout.logicalW - r,
     minY: layout.field.y,
-    maxY: bottom,
+    // containsPoint は下端を含まない（y < rect.y + rect.h）ので、下端ちょうどに
+    // clamp すると「ゾーンの外」になる。画面下部で離した指がすべてその 1 点へ
+    // 写るため、iPhone では画面下 50px ほどが「入れたのに無反応」の死角になっていた
+    maxY: bottom - 1,
   }
 }
 
@@ -127,6 +150,10 @@ function handleInput(w: World, actions: readonly InputAction[], layout: Layout):
   for (const a of actions) {
     switch (a.t) {
       case 'grab': {
+        // マウスは左ボタンを押したまま右ボタンを押すと、同じ pointerId で
+        // pointerdown がもう一度飛んでくる。2 個目を掴ませると release が
+        // 掴んでいない側に適用され、触ってもいないボムが誤爆する
+        if (findGrabbed(w, a.pointerId)) break
         if (activeDrags(w) >= INPUT.MAX_ACTIVE_DRAGS) break
         const bomb = pickBombAt(w.bombs, a.x, a.y)
         if (!bomb) break
@@ -180,7 +207,7 @@ function judgeDrop(w: World, bomb: Bomb, layout: Layout): void {
   }
 
   if (zone.kind !== bomb.kind) {
-    kill(w, 'wrong', bomb.x, bomb.y)
+    kill(w, 'wrong', bomb)
     return
   }
 
@@ -259,7 +286,7 @@ function updateFuse(w: World, dt: number): void {
     b.fuse -= dt
     if (b.fuse <= 0) {
       b.fuse = 0
-      kill(w, 'fuse', b.x, b.y)
+      kill(w, 'fuse', b)
       return
     }
     const ratio = b.fuseMax > 0 ? b.fuse / b.fuseMax : 1

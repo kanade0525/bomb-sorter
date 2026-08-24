@@ -44,7 +44,7 @@ export function createOverlay(root: HTMLElement): Overlay {
 
   // ---- タイトル ----
   const title = el('section', 'screen screen-title')
-  title.appendChild(el('p', 'eyebrow', 'いろと かたちで わける'))
+  title.appendChild(el('p', 'eyebrow', 'かたちで わける'))
   title.appendChild(el('h2', 'title-logo', 'Bomb Sorter'))
   const rules = el('ul', 'rules')
   for (const t of [

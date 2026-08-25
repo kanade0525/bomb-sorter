@@ -81,12 +81,28 @@ if (files.some((f) => /sw\.js$|workbox/.test(f))) {
   ng('Service Worker が混ざっている。ゲームルームでは要らない')
 }
 
-// ---- 6) 外部サイトへのリンクを置かない（MUST NOT） ----
+// ---- 6) 配信元が違うのに絶対 URL で参照するタグを残していないか ----
+// リンクのプレビュー用のタグは公開先のドメインを直接書いているので、
+// ゲームルームでは意味がなく、絶対パス禁止の要件にも触れる
+for (const m of html.matchAll(/<meta\b[^>]*(?:og:|twitter:)[^>]*>/g)) {
+  ng(`リンクのプレビュー用のタグが残っている: ${m[0].replace(/\s+/g, ' ').slice(0, 60)}`)
+}
+
+// ---- 7) 参照しているのに配信されないファイルが無いか ----
+// publicDir を外しているので、アイコンの参照が残ると 404 になる
+for (const m of html.matchAll(/(?:src|href)="(\.\/[^"]+)"/g)) {
+  const rel = m[1].replace(/^\.\//, '')
+  if (!files.some((f) => relative(OUT, f) === rel)) {
+    ng(`参照しているファイルが無い: ${m[1]}`)
+  }
+}
+
+// ---- 8) 外部サイトへのリンクを置かない（MUST NOT） ----
 for (const m of html.matchAll(/<a\b[^>]*href="(https?:[^"]+)"/g)) {
   ng(`外部サイトへのリンクがある: ${m[1]}`)
 }
 
-// ---- 7) SDK の必須呼び出しが入っていること ----
+// ---- 9) SDK の必須呼び出しが入っていること ----
 const js = (
   await Promise.all(files.filter((f) => f.endsWith('.js')).map((f) => readFile(f, 'utf8')))
 ).join('\n')

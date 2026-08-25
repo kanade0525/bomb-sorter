@@ -51,10 +51,20 @@ function cspPlugin() {
     name: 'bomb-sorter-csp',
     apply: 'build' as const,
     transformIndexHtml(html: string) {
+      let out = html
+      if (PLAYABLES) {
+        // リンクのプレビュー用のタグは、公開先のドメインを絶対 URL で書いている。
+        // ゲームルームでは配信元が違うので意味がなく、絶対パス禁止の要件にも触れる。
+        // 属性が複数行に折り返されている場合も拾えるように、タグ全体で見る
+        // （[^>]* は改行も含むので、折り返しをまたいで一致する）
+        out = out.replace(/^[ \t]*<meta\b[^>]*(?:og:|twitter:)[^>]*>\n?/gm, '')
+        // アイコンは publicDir を外すので配信されない。参照だけ残すと 404 になる
+        out = out.replace(/^[ \t]*<link\b[^>]*rel="(?:icon|apple-touch-icon)"[^>]*>\n?/gm, '')
+      }
       let head = `<head>\n    <meta http-equiv="Content-Security-Policy" content="${CSP}" />`
       // SDK は必ずゲームコードより前に読み込む。あとに置くと ytgame が未定義のまま起動する
       if (PLAYABLES) head += `\n    <script src="${SDK_URL}"></script>`
-      return html.replace('<head>', head)
+      return out.replace('<head>', head)
     },
   }
 }
@@ -62,6 +72,10 @@ function cspPlugin() {
 export default defineConfig({
   // ゲームルームは絶対パスを禁じている（MUST）。相対で吐く
   base: PLAYABLES ? './' : BASE,
+  // ゲームルーム向けには public/ を持ち込まない。
+  // アイコンもプレビュー画像も Service Worker も、あちらでは使われない。
+  // バンドルは index.html と assets だけになる
+  publicDir: PLAYABLES ? false : 'public',
   resolve: {
     // PWA プラグインを外すと virtual:pwa-register が解決できなくなるので、
     // 何もしない実装に差し替える

@@ -8,9 +8,11 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#0d0f14" />
+    <!-- リンクを貼ったときに読まれる説明。共有される先は日本語圏に限らないので英語にする。
+         画面の中の言葉は端末の言語に合わせて切り替わる（src/ui/strings.ts） -->
     <meta
       name="description"
-      content="歩き回るボムすけを色で仕分ける、横持ちのスマホ向けアクションゲーム"
+      content="Drag the walking bombs into the bin that matches their colour before the fuses burn out. A one-thumb panic game that loads in under 200 ms."
     />
 
     <!-- CSP は本番ビルド時に vite.config.ts のプラグインが差し込む。
@@ -29,6 +31,26 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
     <title>Bomb Sorter</title>
+
+    <!-- リンクのプレビュー。og:image と og:url は絶対 URL でないと読まれないので、
+         公開先のドメインを直接書く。ゲームルーム向けビルドでは差し込まない
+         （配信元が違い、絶対 URL は要件違反にもなる）-->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Bomb Sorter" />
+    <meta property="og:title" content="Bomb Sorter" />
+    <meta
+      property="og:description"
+      content="Sort the walking bombs by colour before the fuses burn out. Plays in the browser, in portrait or landscape."
+    />
+    <meta property="og:url" content="https://kanade0525.github.io/bomb-sorter/" />
+    <meta property="og:image" content="https://kanade0525.github.io/bomb-sorter/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Bomb Sorter — a red bomb and a black bomb standing on a factory floor"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <h1 class="sr-only">Bomb Sorter — ボムすけを色で仕分けるゲーム</h1>

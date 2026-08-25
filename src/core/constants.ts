@@ -62,7 +62,7 @@ export const BOMB = {
   PIXEL: 4,
   /** よちよち歩きの基準速度（論理px/秒） */
   WALK_BASE: 26,
-  WALK_MAX_SCALE: 2.4,
+  WALK_MAX_SCALE: 2.8,
   /** 向きを変えるまでの間隔 */
   TURN_MIN_SEC: 0.7,
   TURN_MAX_SEC: 2.2,
@@ -76,11 +76,11 @@ export const BOMB = {
 } as const
 
 export const FUSE = {
-  START_SEC: 13.0,
+  START_SEC: 11.0,
   /** 終盤でもこれ以下にはしない。短くしすぎると運ぶ時間そのものが足りなくなる */
-  MIN_SEC: 4.5,
-  /** 1 分あたりどれだけ短くなるか。急がせすぎない */
-  DECAY_PER_MIN: 1.0,
+  MIN_SEC: 3.6,
+  /** 1 分あたりどれだけ短くなるか */
+  DECAY_PER_MIN: 1.6,
   WARN_RATIO: 0.35,
   CRITICAL_RATIO: 0.15,
   /** 導火線の残量を示すドットの数 */
@@ -97,15 +97,28 @@ export const SPAWN = {
    */
   BURST_AT_START: 3,
   /** 短い間隔で湧かせる。上限に達している間はタイマーが止まるので溢れはしない */
-  INTERVAL_START: 0.9,
-  INTERVAL_MIN: 0.45,
-  /** 指数収束の時定数（秒）。大きいほど難しくなるのがゆっくりになる */
-  TAU_SEC: 75,
+  INTERVAL_START: 0.7,
+  /**
+   * 終盤の出現間隔。ここが実質の難易度の天井を決める。
+   *
+   * 同時存在の上限より、こちらの方が効く。上限に達するのは「捌くのが湧きに
+   * 追いつかなくなったあと」なので、湧きより速く捌ける人は上限に触れないまま
+   * 永久に生き残ってしまう。0.3 秒（毎秒 3.3 体）だと、1 回 0.2 秒で捌ける速さの
+   * 相手が 900 秒でも死ななかった。得点を競う遊びなので、いつかは必ず終わらせる。
+   */
+  INTERVAL_MIN: 0.18,
+  /** 指数収束の時定数（秒）。小さいほど早く詰まってくる */
+  TAU_SEC: 45,
   JITTER: 0.3,
-  FIRST_DELAY: 0.5,
-  ALIVE_START: 5,
-  ALIVE_CAP: 14,
-  ALIVE_STEP_SEC: 18,
+  FIRST_DELAY: 0.4,
+  ALIVE_START: 6,
+  ALIVE_CAP: 18,
+  /**
+   * 同時上限が 1 増えるまでの秒数。
+   * ここが難易度の上がり方をいちばん強く決める。長くすると、最初は忙しいのに
+   * いつまでも同じ調子が続いて飽きる。9 秒だと 1 分で倍になる
+   */
+  ALIVE_STEP_SEC: 9,
   /** 同じ色が続く上限。これを超えたら反対の色を強制する */
   MAX_SAME_KIND_RUN: 3,
 } as const

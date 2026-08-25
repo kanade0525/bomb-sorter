@@ -25,7 +25,7 @@ export function maxAlive(t: number): number {
   )
 }
 
-/** 歩く速さの倍率 */
+/** 歩く速さの倍率。終盤はちょろちょろ動いて掴みにくくなる */
 export function walkScale(t: number): number {
-  return Math.min(BOMB.WALK_MAX_SCALE, 1 + Math.max(0, t) / 110)
+  return Math.min(BOMB.WALK_MAX_SCALE, 1 + Math.max(0, t) / 80)
 }

@@ -61,12 +61,11 @@ export const BOMB = {
 } as const
 
 export const FUSE = {
-  // 同時に出る数を大きく増やしたぶん、1 体あたりの猶予は長くする。
-  // 開始数秒で手の打ちようがなく全滅するのは「難しい」ではなく「理不尽」になる
-  START_SEC: 12.0,
-  MIN_SEC: 3.2,
-  /** 1 分あたりどれだけ短くなるか */
-  DECAY_PER_MIN: 1.6,
+  START_SEC: 13.0,
+  /** 終盤でもこれ以下にはしない。短くしすぎると運ぶ時間そのものが足りなくなる */
+  MIN_SEC: 4.5,
+  /** 1 分あたりどれだけ短くなるか。急がせすぎない */
+  DECAY_PER_MIN: 1.0,
   WARN_RATIO: 0.35,
   CRITICAL_RATIO: 0.15,
   /** 導火線の残量を示すドットの数 */
@@ -75,20 +74,23 @@ export const FUSE = {
 
 export const SPAWN = {
   /**
-   * 最初から画面いっぱいにボムすけを出す。
-   * 落ち着いて 1 体ずつ運べる時間があると、それはもうパニックゲームではない。
-   * 開始直後から捌ききれない量が四方から出てくる状態を作る。
+   * 最初に置く数。少なめにする。
+   *
+   * 一度は開始時点で 10 体置いてみたが、いきなり捌ききれない量が並ぶと
+   * 「難しい」ではなく「もう無理」に見えて手が止まる。数体から始めて、
+   * 短い間隔で次々と湧いてくる形にすると、増えていく手応えが出る。
    */
-  BURST_AT_START: 10,
-  INTERVAL_START: 0.5,
-  INTERVAL_MIN: 0.25,
-  /** 指数収束の時定数（秒） */
-  TAU_SEC: 60,
+  BURST_AT_START: 3,
+  /** 短い間隔で湧かせる。上限に達している間はタイマーが止まるので溢れはしない */
+  INTERVAL_START: 0.9,
+  INTERVAL_MIN: 0.45,
+  /** 指数収束の時定数（秒）。大きいほど難しくなるのがゆっくりになる */
+  TAU_SEC: 75,
   JITTER: 0.3,
-  FIRST_DELAY: 0.15,
-  ALIVE_START: 12,
-  ALIVE_CAP: 20,
-  ALIVE_STEP_SEC: 12,
+  FIRST_DELAY: 0.5,
+  ALIVE_START: 5,
+  ALIVE_CAP: 14,
+  ALIVE_STEP_SEC: 18,
   /** 同じ色が続く上限。これを超えたら反対の色を強制する */
   MAX_SAME_KIND_RUN: 3,
 } as const

@@ -26,7 +26,7 @@ test('ハイスコアが保存され、リロード後も表示される', async
   const score = (await state(page)).score
   expect(score).toBeGreaterThan(0)
 
-  await advanceBy(page, 30_000)
+  await advanceBy(page, 20_000)
   expect((await state(page)).phase).toBe('gameover')
 
   const saved = await page.evaluate((k) => localStorage.getItem(k), KEY)

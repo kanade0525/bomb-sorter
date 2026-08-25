@@ -490,7 +490,7 @@ describe('壊れたレイアウト', () => {
   })
 
   it('フィールドが下限まで潰れたレイアウトでも成立する', () => {
-    const squashed = computeLayout(FIELD.W_MIN, FIELD.LOGICAL_H)
+    const squashed = computeLayout(FIELD.LAND_LONG_MIN, FIELD.LOGICAL_SHORT)
     const w = createWorld(11, squashed)
     applyCommand(w, 'start', squashed)
     stepWorld(w, TIMING.READY_SEC + 0.001, [], squashed)

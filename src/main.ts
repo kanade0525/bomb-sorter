@@ -207,7 +207,7 @@ function draw(): void {
   // ゲームの進行には一切関与しない、破線が流れる速さなどの見た目専用の時刻
   renderTime = (performance.now() - startedAt) / 1000
   render(ctx2d, { world, fx, vp, flags, best, t: renderTime, floor })
-  overlay.update(world, best, bestCombo, vp.fit.portrait)
+  overlay.update(world, best, bestCombo)
 
   // モーダルが出ている間の上部ボタンの扱い。
   //
@@ -225,12 +225,7 @@ const loop = createLoop(step, draw)
 // ---- リサイズ ----
 let resizeTimer = 0
 function relayout(): void {
-  const wasPortrait = vp.fit.portrait
   vp = measureViewport(canvas, probe, insetsOverride)
-  // 横持ち前提のレイアウトなので、縦にされたらそのまま遊ばせない
-  if (vp.fit.portrait && !wasPortrait && (world.phase === 'playing' || world.phase === 'ready')) {
-    applyCommand(world, 'pause', vp.layout)
-  }
   // 座標系が変わった時点で、掴んでいた指と判定の前提が食い違う。
   // 手放しておかないと、指を動かしていないのに離した瞬間に誤爆死する
   releaseAllDrags(world, vp.layout)

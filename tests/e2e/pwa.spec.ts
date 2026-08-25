@@ -15,7 +15,8 @@ test('manifest がサブパス込みで正しく解決される', async ({ page,
   expect(m.scope).toBe('/bomb-sorter/')
   expect(m.display).toBe('fullscreen')
   expect(m.display_override).toEqual(['fullscreen', 'standalone'])
-  expect(m.orientation).toBe('landscape')
+  // 縦持ちでも横持ちでも遊べるので、向きは固定しない
+  expect(m.orientation).toBe('any')
   expect(m.icons.length).toBeGreaterThanOrEqual(2)
   expect(m.icons.some((i: { purpose?: string }) => i.purpose === 'maskable')).toBe(true)
 

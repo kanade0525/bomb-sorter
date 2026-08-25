@@ -166,7 +166,7 @@ test('主要な画面を撮る', async ({ page }, info) => {
   await shot('07-scored')
 
   // 8) ゲームオーバー
-  await advanceBy(page, 30_000)
+  await advanceBy(page, 20_000)
   await shot('08-gameover')
 })
 

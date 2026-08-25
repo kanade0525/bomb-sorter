@@ -83,7 +83,7 @@ test('連続で成功するとコンボが表示される', async ({ page }) => 
 })
 
 test('放置すると導火線が尽きてゲームオーバーになる', async ({ page }) => {
-  await advanceBy(page, 30_000)
+  await advanceBy(page, 20_000)
   const s = await state(page)
   expect(s.phase).toBe('gameover')
   expect(s.deathReason).toBe('fuse')
@@ -128,7 +128,7 @@ test('もう一度でスコアが 0 に戻る', async ({ page }) => {
   await drag(page, canvas, fit, { x: bomb.x, y: bomb.y }, zoneCenter(l, bomb.kind))
   expect((await state(page)).score).toBeGreaterThan(0)
 
-  await advanceBy(page, 30_000)
+  await advanceBy(page, 20_000)
   expect((await state(page)).phase).toBe('gameover')
 
   await page.getByRole('button', { name: 'もう一度' }).click()

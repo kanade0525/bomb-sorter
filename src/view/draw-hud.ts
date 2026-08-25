@@ -1,9 +1,12 @@
-import { BOMB, FIELD, FUSE, SCORE } from '../core/constants'
+import { FIELD, FUSE, SCORE } from '../core/constants'
 import { clamp } from '../core/math'
 import type { Layout, World } from '../core/types'
 import { comboMultiplier } from '../game/score'
 import { COLOR } from './palette'
 import { drawPixelText, measurePixelText, pixelTextHeight } from './pixel-font'
+
+const LABEL = '600 11px system-ui, -apple-system, "Hiragino Sans", sans-serif'
+const LABEL_BOLD = '700 12px system-ui, -apple-system, "Hiragino Sans", sans-serif'
 
 /**
  * 得点・記録・連鎖と、連鎖の残り時間ゲージ。
@@ -12,10 +15,9 @@ import { drawPixelText, measurePixelText, pixelTextHeight } from './pixel-font'
  * ここがシステムフォントのままだと画面全体のピクセルの目から浮いてしまう。
  * 言葉のラベルだけはシステムフォントのまま — 漢字を 5x7 で組むと読めなくなる。
  *
- * 左に得点、右に連鎖を置き、それぞれ左揃え・右揃えにする。
- * 一度スコアが 5 桁になったところで中央寄せの連鎖表示と重なったので、
- * 「桁が増えても衝突しない」ことを配置の条件にしている。
- * 右端には DOM のボタンが乗っているので、その幅ぶんは空ける。
+ * 横持ちは 1 段、縦持ちは横幅が足りないので 2 段に組み替える。
+ * 「桁が増えても衝突しない」ことを配置の条件にしている（一度 5 桁で重なった）。
+ * 右端には DOM のボタンが乗っているので、その幅ぶんは必ず空ける。
  */
 export function drawHud(
   ctx: CanvasRenderingContext2D,
@@ -25,91 +27,118 @@ export function drawHud(
 ): void {
   const h = layout.hud
   const right = h.x + h.w - FIELD.HUD_RESERVED_RIGHT
-  const label = '600 11px system-ui, -apple-system, "Hiragino Sans", sans-serif'
+  // 得点と連鎖を 1 行に並べられるだけの幅があるか
+  const twoRows = right - h.x < 230
+
   ctx.save()
   ctx.textBaseline = 'alphabetic'
 
   // ---- 得点 ----
   ctx.fillStyle = COLOR.textDim
-  ctx.font = label
+  ctx.font = LABEL
   ctx.textAlign = 'left'
   ctx.fillText('得点', h.x, h.y + 12)
 
   const scoreText = String(w.score)
-  // 桁が伸びても右側にぶつからないよう、長くなったらドットを小さくする
   const scoreDot = scoreText.length > 7 ? 2 : scoreText.length > 5 ? 3 : 4
   drawPixelText(ctx, scoreText, h.x, h.y + 16, scoreDot, COLOR.text)
 
-  // ---- 記録と、いちばん危ないボムの残り秒 ----
+  // ---- いちばん危ないボムの残り秒、または記録 ----
   // 死ぬ主因は導火線切れなので、見逃すと死ぬ情報を、
   // 取れると嬉しい情報（連鎖）より優先して目立つ位置に出す
-  let minRatio = 1
-  let minLeft = Infinity
-  for (const b of w.bombs) {
-    if (b.vanish > 0 || b.fuseMax <= 0) continue
-    const r = b.fuse / b.fuseMax
-    if (r < minRatio) {
-      minRatio = r
-      minLeft = b.fuse
-    }
-  }
-
+  const urgent = findUrgent(w)
   const infoX = h.x + measurePixelText('0000000', scoreDot) + 14
   const infoY = h.y + 16
-  ctx.textAlign = 'left'
-  if (minRatio < FUSE.WARN_RATIO && Number.isFinite(minLeft)) {
-    const color = minRatio < FUSE.CRITICAL_RATIO ? COLOR.danger : COLOR.accent
-    ctx.fillStyle = color
-    ctx.font = '700 12px system-ui, -apple-system, "Hiragino Sans", sans-serif'
-    ctx.fillText('残り', infoX, infoY + 2)
-    drawPixelText(ctx, minLeft.toFixed(1), infoX + 30, infoY, 3, color)
-    ctx.fillStyle = color
-    ctx.fillText('秒', infoX + 30 + measurePixelText('0.0', 3) + 4, infoY + 2)
-  } else if (best > w.score) {
-    ctx.fillStyle = COLOR.textDim
-    ctx.font = label
-    ctx.fillText('最高', infoX, infoY + 2)
-    drawPixelText(ctx, String(best), infoX + 26, infoY, 2, COLOR.textDim)
-  } else if (best > 0) {
-    ctx.fillStyle = COLOR.accent
-    ctx.font = '700 12px system-ui, -apple-system, "Hiragino Sans", sans-serif'
-    ctx.fillText('新記録', infoX, infoY + 2)
-  }
+  drawInfo(ctx, urgent, best, w.score, infoX, infoY)
 
   // ---- 連鎖 ----
   if (w.combo > 0) {
-    const mult = comboMultiplier(w.combo)
-    const multText = `x${mult.toFixed(1)}`
-    const comboText = String(w.combo)
     const dot = 3
-
-    // 右から「x5.0」「連鎖」「12」の順に積む
-    const multW = measurePixelText(multText, dot)
-    drawPixelText(ctx, multText, right, h.y + 8, dot, COLOR.accent, 'right')
-
-    ctx.textAlign = 'right'
-    ctx.fillStyle = COLOR.accent
-    ctx.font = '700 13px system-ui, -apple-system, "Hiragino Sans", sans-serif'
-    const wordRight = right - multW - 8
-    ctx.fillText('連鎖', wordRight, h.y + 8 + pixelTextHeight(dot) - 3)
-    drawPixelText(ctx, comboText, wordRight - 30, h.y + 8, dot, COLOR.accent, 'right')
-
-    // 連鎖が切れるまでの残り。滑らかなバーではなくドットの目盛りで見せる
-    const cells = 12
-    const cell = 6
-    const gap = 2
-    const gw = cells * cell + (cells - 1) * gap
-    const gx = right - gw
-    const gy = h.y + 8 + pixelTextHeight(dot) + 6
-    const ratio = clamp(w.comboTimer / SCORE.COMBO_WINDOW, 0, 1)
-    const lit = Math.ceil(ratio * cells)
-    for (let i = 0; i < cells; i++) {
-      ctx.fillStyle =
-        i < lit ? (ratio < 0.3 ? COLOR.danger : COLOR.accent) : 'rgba(255,255,255,0.13)'
-      ctx.fillRect(gx + i * (cell + gap), gy, cell, 4)
-    }
+    // 2 段組みのときは得点の下の行へ。その行にはボタンが無いので右端まで使える
+    const comboRight = twoRows ? h.x + h.w : right
+    const comboY = twoRows ? h.y + 16 + pixelTextHeight(scoreDot) + 6 : h.y + 8
+    drawCombo(ctx, w, comboRight, comboY, dot)
   }
 
   ctx.restore()
-  void BOMB
+}
+
+function findUrgent(w: World): { ratio: number; left: number } | null {
+  let ratio = 1
+  let left = Infinity
+  for (const b of w.bombs) {
+    if (b.vanish > 0 || b.fuseMax <= 0) continue
+    const r = b.fuse / b.fuseMax
+    if (r < ratio) {
+      ratio = r
+      left = b.fuse
+    }
+  }
+  if (ratio >= FUSE.WARN_RATIO || !Number.isFinite(left)) return null
+  return { ratio, left }
+}
+
+function drawInfo(
+  ctx: CanvasRenderingContext2D,
+  urgent: { ratio: number; left: number } | null,
+  best: number,
+  score: number,
+  x: number,
+  y: number
+): void {
+  ctx.textAlign = 'left'
+  if (urgent) {
+    const color = urgent.ratio < FUSE.CRITICAL_RATIO ? COLOR.danger : COLOR.accent
+    ctx.fillStyle = color
+    ctx.font = LABEL_BOLD
+    ctx.fillText('残り', x, y + 2)
+    drawPixelText(ctx, urgent.left.toFixed(1), x + 30, y, 3, color)
+    ctx.fillStyle = color
+    ctx.fillText('秒', x + 30 + measurePixelText('0.0', 3) + 4, y + 2)
+  } else if (best > score) {
+    ctx.fillStyle = COLOR.textDim
+    ctx.font = LABEL
+    ctx.fillText('最高', x, y + 2)
+    drawPixelText(ctx, String(best), x + 26, y, 2, COLOR.textDim)
+  } else if (best > 0) {
+    ctx.fillStyle = COLOR.accent
+    ctx.font = LABEL_BOLD
+    ctx.fillText('新記録', x, y + 2)
+  }
+}
+
+function drawCombo(
+  ctx: CanvasRenderingContext2D,
+  w: World,
+  right: number,
+  y: number,
+  dot: number
+): void {
+  const mult = comboMultiplier(w.combo)
+  const multText = `x${mult.toFixed(1)}`
+  const multW = measurePixelText(multText, dot)
+
+  // 右から「x5.0」「連鎖」「12」の順に積む
+  drawPixelText(ctx, multText, right, y, dot, COLOR.accent, 'right')
+
+  ctx.textAlign = 'right'
+  ctx.fillStyle = COLOR.accent
+  ctx.font = '700 13px system-ui, -apple-system, "Hiragino Sans", sans-serif'
+  const wordRight = right - multW - 8
+  ctx.fillText('連鎖', wordRight, y + pixelTextHeight(dot) - 3)
+  drawPixelText(ctx, String(w.combo), wordRight - 30, y, dot, COLOR.accent, 'right')
+
+  // 連鎖が切れるまでの残り。滑らかなバーではなくドットの目盛りで見せる
+  const cells = 12
+  const cell = 6
+  const gap = 2
+  const gw = cells * cell + (cells - 1) * gap
+  const gx = right - gw
+  const gy = y + pixelTextHeight(dot) + 6
+  const ratio = clamp(w.comboTimer / SCORE.COMBO_WINDOW, 0, 1)
+  const lit = Math.ceil(ratio * cells)
+  for (let i = 0; i < cells; i++) {
+    ctx.fillStyle = i < lit ? (ratio < 0.3 ? COLOR.danger : COLOR.accent) : 'rgba(255,255,255,0.13)'
+    ctx.fillRect(gx + i * (cell + gap), gy, cell, 4)
+  }
 }

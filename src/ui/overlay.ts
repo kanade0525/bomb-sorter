@@ -43,7 +43,7 @@ function pixelNumber(
  * 読み上げが何もしなくても付いてくるから。innerHTML は使わず要素を組み立てる。
  */
 export interface Overlay {
-  update(world: World, best: number, bestCombo: number, portrait: boolean): void
+  update(world: World, best: number, bestCombo: number): void
   onCommand(cb: (cmd: Command) => void): void
   /** 何かしらの画面を出しているか。上部ボタンの扱いを決めるのに使う */
   isOpen(): boolean
@@ -137,16 +137,7 @@ export function createOverlay(root: HTMLElement): Overlay {
   backBtn.addEventListener('click', () => emit('title'))
   over.appendChild(backBtn)
 
-  // ---- 縦持ちの案内 ----
-  // 横持ち前提のレイアウトなので、縦のままだと箱が近すぎて遊びにならない
-  const rotate = el('section', 'screen screen-rotate')
-  const rotIcon = createIcon('screen_rotation', 56)
-  rotIcon.classList.add('rotate-icon')
-  rotate.appendChild(rotIcon)
-  rotate.appendChild(el('h2', undefined, '横向きにしてください'))
-  rotate.appendChild(el('p', 'hint', 'ボムすけを左右の箱に振り分けるので、横持ちで遊びます'))
-
-  const screens = [title, paused, over, rotate]
+  const screens = [title, paused, over]
   // 画面が開いたときのフォーカス先。ボタンに当てると起動直後から派手なリングが出て
   // タッチ利用者には不自然なので、節そのものを受け皿にする
   for (const s of screens) {
@@ -158,23 +149,20 @@ export function createOverlay(root: HTMLElement): Overlay {
   let shown = ''
 
   return {
-    update(world, best, bestCombo, portrait) {
+    update(world, best, bestCombo) {
       const phase = world.phase
-      const key = `${phase}|${world.score}|${best}|${world.bestCombo}|${world.deathReason ?? ''}|${portrait}`
+      const key = `${phase}|${world.score}|${best}|${world.bestCombo}|${world.deathReason ?? ''}`
       if (key === shown) return
       shown = key
 
-      const modal = phase === 'title' || phase === 'paused' || phase === 'gameover'
-      const visible = modal || portrait
+      const visible = phase === 'title' || phase === 'paused' || phase === 'gameover'
       root.classList.toggle('is-open', visible)
       // プレイ中はオーバーレイを完全に無効化して、指がボムに届くようにする
       root.setAttribute('aria-hidden', visible ? 'false' : 'true')
 
-      // 縦持ちの案内は他のどの画面より優先する
-      rotate.hidden = !portrait
-      title.hidden = portrait || phase !== 'title'
-      paused.hidden = portrait || phase !== 'paused'
-      over.hidden = portrait || phase !== 'gameover'
+      title.hidden = phase !== 'title'
+      paused.hidden = phase !== 'paused'
+      over.hidden = phase !== 'gameover'
 
       titleBest.textContent = best > 0 ? `最高得点 ${best}（最高 ${bestCombo} 連鎖）` : ''
 
@@ -192,13 +180,7 @@ export function createOverlay(root: HTMLElement): Overlay {
 
       // 開いた画面へフォーカスを移す。読み上げが今どの画面かを伝えられるようにする
       if (visible) {
-        const section = portrait
-          ? rotate
-          : phase === 'title'
-            ? title
-            : phase === 'paused'
-              ? paused
-              : over
+        const section = phase === 'title' ? title : phase === 'paused' ? paused : over
         if (!section.contains(document.activeElement)) {
           section.focus({ preventScroll: true })
         }

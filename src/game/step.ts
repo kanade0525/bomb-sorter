@@ -141,24 +141,25 @@ function findGrabbed(w: World, pointerId: number): Bomb | null {
 /**
  * ドラッグ中に指を追える範囲。箱には届き、画面外へは出さない。
  *
+ * フィールドと箱をぜんぶ含む外接矩形にする。箱が下に並ぶ縦持ちでも、
+ * 左右に置かれる横持ちでも、同じ計算でそのまま通る。
+ *
  * containsPoint は右端と下端を含まない（x < rect.x + rect.w）ので、端ちょうどへ
  * clamp すると「箱の外」になる。端の外側で離した指がすべてその 1 点に写るため、
  * 一度それが「入れたのに無反応」の死角を作った。必ず内側 1px に収める。
  */
 function dragBounds(layout: Layout): { minX: number; maxX: number; minY: number; maxY: number } {
-  const zones = layout.zones
-  const first = zones[0]
-  const last = zones[zones.length - 1]
-  const leftEdge = first ? first.rect.x : 0
-  const rightEdge = last ? last.rect.x + last.rect.w : layout.logicalW
-  const top = first ? first.rect.y : layout.field.y
-  const bottom = first ? first.rect.y + first.rect.h : layout.logicalH
-  return {
-    minX: leftEdge,
-    maxX: rightEdge - 1,
-    minY: Math.min(top, layout.field.y),
-    maxY: bottom - 1,
+  let minX = layout.field.x
+  let minY = layout.field.y
+  let maxX = layout.field.x + layout.field.w
+  let maxY = layout.field.y + layout.field.h
+  for (const z of layout.zones) {
+    minX = Math.min(minX, z.rect.x)
+    minY = Math.min(minY, z.rect.y)
+    maxX = Math.max(maxX, z.rect.x + z.rect.w)
+    maxY = Math.max(maxY, z.rect.y + z.rect.h)
   }
+  return { minX, maxX: maxX - 1, minY, maxY: maxY - 1 }
 }
 
 function handleInput(w: World, actions: readonly InputAction[], layout: Layout): void {

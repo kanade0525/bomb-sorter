@@ -13,7 +13,9 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   workers: isCI ? 2 : '50%',
-  timeout: 30_000,
+  // 4 つの向き・端末を並列で回すので、1 本あたりの余裕を広めに取る。
+  // 30 秒だと、まとめて走らせたときだけ時間切れになって落ちた
+  timeout: 60_000,
   expect: { timeout: 5_000 },
   reporter: isCI ? [['github'], ['html', { open: 'never' }], ['list']] : [['list']],
 
@@ -27,8 +29,10 @@ export default defineConfig({
   },
 
   projects: [
-    // iPhone のプリセットは webkit。iOS 特有の挙動はここで見る
+    // iPhone のプリセットは webkit。iOS 特有の挙動はここで見る。
+    // 縦持ちでも横持ちでも遊べるので、両方の向きを回す
     { name: 'iphone', use: { ...devices['iPhone 17 landscape'] } },
+    { name: 'iphone-portrait', use: { ...devices['iPhone 17'] } },
     { name: 'android', use: { ...devices['Pixel 9 landscape'] } },
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
   ],

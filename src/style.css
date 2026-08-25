@@ -180,30 +180,6 @@ canvas#game {
   letter-spacing: 0.02em;
 }
 
-.screen-rotate {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.rotate-icon {
-  color: #ffd166;
-  animation: rotate-hint 2.4s ease-in-out infinite;
-}
-
-@keyframes rotate-hint {
-  0%,
-  55%,
-  100% {
-    transform: rotate(0deg);
-  }
-  75%,
-  90% {
-    transform: rotate(-90deg);
-  }
-}
-
 .screen h2 {
   margin: 0 0 14px;
   font-size: 22px;

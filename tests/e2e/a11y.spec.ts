@@ -62,7 +62,7 @@ test('ゲームオーバーは assertive で知らせる', async ({ page }) => {
   await page.goto('./?seed=7&frozen=1')
   await ready(page)
   await startGame(page)
-  await advanceBy(page, 30_000)
+  await advanceBy(page, 20_000)
   expect((await state(page)).phase).toBe('gameover')
   const alert = page.locator('#sr-alert')
   await expect(alert).toHaveAttribute('aria-live', 'assertive')
@@ -114,9 +114,15 @@ test('レイアウトは箱が画面の外へ出ない', async ({ page }) => {
     expect(z.rect.x).toBeGreaterThanOrEqual(0)
     expect(z.rect.x + z.rect.w).toBeLessThanOrEqual(l.logicalW)
   }
-  // 横持ちなので、フィールドは左右の箱の「間」にある
-  expect(l.field.x).toBeGreaterThanOrEqual(l.zones[0]!.rect.x + l.zones[0]!.rect.w)
-  expect(l.field.x + l.field.w).toBeLessThanOrEqual(l.zones[1]!.rect.x)
+  // 横持ちならフィールドは左右の箱の「間」に、縦持ちなら箱の「上」にある。
+  // どちらでも、フィールドと箱は重ならない
+  const portrait = l.logicalH > l.logicalW
+  if (portrait) {
+    expect(l.field.y + l.field.h).toBeLessThanOrEqual(l.zones[0]!.rect.y)
+  } else {
+    expect(l.field.x).toBeGreaterThanOrEqual(l.zones[0]!.rect.x + l.zones[0]!.rect.w)
+    expect(l.field.x + l.field.w).toBeLessThanOrEqual(l.zones[1]!.rect.x)
+  }
   for (const z of l.zones) {
     expect(z.rect.y + z.rect.h).toBeLessThanOrEqual(l.logicalH)
   }

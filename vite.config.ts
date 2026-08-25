@@ -68,8 +68,8 @@ export default defineConfig({
         // fullscreen に対応していない環境では standalone へ落ちる
         display: 'fullscreen',
         display_override: ['fullscreen', 'standalone'],
-        // 左右の箱に振り分けるゲームなので横持ち専用
-        orientation: 'landscape',
+        // 縦持ちでも横持ちでも遊べるので、向きは固定しない
+        orientation: 'any',
         background_color: '#0d0f14',
         theme_color: '#0d0f14',
         icons: [

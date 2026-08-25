@@ -121,3 +121,26 @@ test('レイアウトは箱が画面の外へ出ない', async ({ page }) => {
     expect(z.rect.y + z.rect.h).toBeLessThanOrEqual(l.logicalH)
   }
 })
+
+test('全画面ボタンは、使える環境でだけ出る', async ({ page }) => {
+  await page.goto('./?seed=1&frozen=1')
+  await ready(page)
+
+  const supported = await page.evaluate(() =>
+    Boolean(document.fullscreenEnabled && document.documentElement.requestFullscreen)
+  )
+  const btn = page.getByRole('button', { name: '全画面にする' })
+
+  if (supported) {
+    await expect(btn).toBeVisible()
+    const box = await btn.boundingBox()
+    expect(box!.width).toBeGreaterThanOrEqual(44)
+    expect(box!.height).toBeGreaterThanOrEqual(44)
+    // 使える環境では、ホーム画面追加の案内は出さない
+    await expect(page.getByText('ホーム画面に追加すると')).toBeHidden()
+  } else {
+    // 使えない環境（iPhone の Safari）では、代わりにホーム画面追加をすすめる
+    await expect(btn).toBeHidden()
+    await expect(page.getByText('ホーム画面に追加すると')).toBeVisible()
+  }
+})

@@ -237,6 +237,18 @@ canvas#game {
   line-height: 1;
 }
 
+.hint-fullscreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #ffd166;
+}
+
+.hint-fullscreen[hidden] {
+  display: none;
+}
+
 .hint {
   margin-top: 16px;
   font-size: 11px;

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { SPAWN } from '../../src/core/constants'
 import { advanceBy, ready, startGame, state } from '../helpers/game'
 
 test('サブパス配下で読み込め、失敗するリクエストが 1 件もない', async ({ page }) => {
@@ -64,13 +65,20 @@ test('はじめるを押すとカウントダウンを経てプレイ中にな�
   await expect(page.locator('#overlay')).toHaveAttribute('aria-hidden', 'true')
 })
 
-test('プレイ中は時間が経つとボムが増える', async ({ page }) => {
+test('開始した時点でボムすけがうじゃうじゃ出ている', async ({ page }) => {
   await page.goto('./?seed=99&frozen=1')
   await ready(page)
   await startGame(page)
+
+  // 落ち着いて 1 体ずつ運べる時間があると、それはもうパニックゲームではない
+  // カウントダウンを抜けた直後には追加のスポーンが始まっているので、
+  // ぴったりではなく「最初のひと山ぶんは必ず出ている」を見る
   const before = (await state(page)).bombs.length
+  expect(before).toBeGreaterThanOrEqual(SPAWN.BURST_AT_START)
+
   await advanceBy(page, 4000)
   const after = await state(page)
   expect(after.bombs.length).toBeGreaterThanOrEqual(before)
-  expect(after.bombs.length).toBeLessThanOrEqual(8)
+  // ただし上限は超えない
+  expect(after.bombs.length).toBeLessThanOrEqual(SPAWN.ALIVE_CAP)
 })

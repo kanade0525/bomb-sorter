@@ -64,7 +64,10 @@ export default defineConfig({
         // base 配下を指す。'/' にするとホーム画面から起動して 404 になる。
         start_url: BASE,
         scope: BASE,
-        display: 'standalone',
+        // ホーム画面から起動したときはブラウザの UI を一切出さない。
+        // fullscreen に対応していない環境では standalone へ落ちる
+        display: 'fullscreen',
+        display_override: ['fullscreen', 'standalone'],
         // 左右の箱に振り分けるゲームなので横持ち専用
         orientation: 'landscape',
         background_color: '#0d0f14',

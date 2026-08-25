@@ -47,16 +47,15 @@ export function render(ctx: CanvasRenderingContext2D, input: RenderInput): void 
     ctx.fillRect(0, 0, layout.logicalW, layout.logicalH)
   }
 
-  // どの箱の上に指があるか。掴んでいるボムの中心で判定し、
-  // 色が合っているかどうかまで見る（合っていない箱を強調すると誤投入へ誘ってしまう）
+  // どの箱の上に指があるか。掴んでいるボムの中心で判定する。
+  // 色が合っているかどうかは見ない — 落とす前に正誤が分かってしまうと、
+  // 慌てて間違える瞬間が無くなってパニックゲームでなくなる
   const hover = new Map<BombKind, ZoneHover>()
   for (const b of world.bombs) {
     if (b.grabbedBy === null) continue
     const z = zoneAt(layout, b.x, b.y)
     if (!z) continue
-    const next: ZoneHover = z.kind === b.kind ? 'match' : 'wrong'
-    // 2 本指で片方が正解なら正解を優先して見せる
-    if (next === 'match' || !hover.has(z.kind)) hover.set(z.kind, next)
+    hover.set(z.kind, 'hover')
   }
 
   for (const z of layout.zones) {

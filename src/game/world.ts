@@ -127,8 +127,9 @@ export function resetForPlay(w: World, layout: Layout): void {
       w.lastKind = kind
       w.sameKindRun = 1
     }
-    // 同時に出したぶん、導火線が一斉に尽きないよう少しずらす
-    bomb.fuse = bomb.fuseMax * (1 - i * 0.12)
+    // 同時に出したぶん、導火線が一斉に尽きないよう少しずらす。
+    // ずらし幅を大きくすると、最後の 1 体が出た瞬間から警告状態になって理不尽になる
+    bomb.fuse = bomb.fuseMax * (1 - i * 0.04)
   }
 }
 

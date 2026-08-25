@@ -71,7 +71,10 @@ export function stepWorld(
   if (w.phase !== 'playing') return
   updateVanish(w, dt)
   trySpawn(w, dt, layout)
-  separateBombs(w.bombs, layout.field)
+  // 分離は時間に依存しない位置の押し合いなので、dt = 0 でも動いてしまう。
+  // 同時に出す数を増やしたら重なった状態で始まることが増えて表面化した。
+  // 「時間が進まないなら何も起きない」を保つため、進んだときだけ押し合わせる
+  if (dt > 0) separateBombs(w.bombs, layout.field)
 }
 
 /**

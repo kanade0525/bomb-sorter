@@ -1,15 +1,17 @@
 import { BOMB, STORE } from '../core/constants'
 import type { StoredBomb, Zone } from '../core/types'
 import { drawBody } from './draw-bomb'
-import { COLOR, styleOf } from './palette'
+import { styleOf } from './palette'
 
 /**
  * 指が箱の上にあるときの状態。
  *
- * 'wrong' を 'match' と同じ見た目にしてはいけない。誤投入は即ゲームオーバーなので、
- * 「ここに落としてよい」に見える表示を出した時点で理不尽な死を招く。
+ * 色が合っているかどうかで見た目を変えない。以前は誤りの箱に × を重ねていたが、
+ * それだと落とす前に「やば、こっちじゃない」と気づけてしまい、
+ * 慌てて間違える瞬間そのものが無くなる。パニックゲームとして、
+ * 「どこに落ちるか」だけを見せて「合っているか」は見せない。
  */
-export type ZoneHover = 'none' | 'match' | 'wrong'
+export type ZoneHover = 'none' | 'hover'
 
 /**
  * 仕分け先の箱。
@@ -27,8 +29,7 @@ export function drawZone(
 ): void {
   const st = styleOf(zone.kind)
   const r = zone.rect
-  const hovered = hover === 'match'
-  const wrong = hover === 'wrong'
+  const hovered = hover === 'hover'
 
   ctx.save()
 
@@ -54,49 +55,23 @@ export function drawZone(
     ctx.fill()
   }
 
-  if (wrong) {
-    // 「今は閉じている」ことを面で示す。枠と × だけだと、指で隠れたときに伝わらない
-    ctx.fillStyle = 'rgba(13,15,20,0.55)'
-    ctx.fill()
-  }
-
   // ---- 中身（仕分け済みのボム） ----
   ctx.save()
   ctx.beginPath()
   ctx.roundRect(r.x, r.y, r.w, r.h, 10)
   ctx.clip()
-  ctx.globalAlpha = wrong ? 0.35 : 1
   drawStored(ctx, zone, stored)
-  ctx.globalAlpha = 1
   ctx.restore()
 
   // ---- 枠 ----
   ctx.lineWidth = hovered ? 4 : 2
-  // 誤りのときは枠を沈ませて「引っ込む」印象にする。太くすると誘ってしまう
-  ctx.strokeStyle = wrong ? COLOR.outline : st.binEdge
+  ctx.strokeStyle = st.binEdge
   ctx.setLineDash(hovered ? [12, 6] : [])
   ctx.lineDashOffset = hovered ? -t * 18 : 0
   ctx.beginPath()
   ctx.roundRect(r.x, r.y, r.w, r.h, 10)
   ctx.stroke()
   ctx.setLineDash([])
-
-  // ---- 誤りのときの × ----
-  // 掴んでいるボムと指の下に隠れないよう、箱いっぱいに広げる
-  if (wrong) {
-    const cx = r.x + r.w / 2
-    const cy = r.y + r.h / 2
-    const k = Math.min(r.w, r.h) * 0.34
-    ctx.strokeStyle = COLOR.reject
-    ctx.lineWidth = 8
-    ctx.lineCap = 'round'
-    ctx.beginPath()
-    ctx.moveTo(cx - k, cy - k)
-    ctx.lineTo(cx + k, cy + k)
-    ctx.moveTo(cx + k, cy - k)
-    ctx.lineTo(cx - k, cy + k)
-    ctx.stroke()
-  }
 
   ctx.restore()
 }

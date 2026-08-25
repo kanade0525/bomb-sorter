@@ -12,6 +12,8 @@ export interface Overlay {
   onCommand(cb: (cmd: Command) => void): void
   /** 何かしらの画面を出しているか。上部ボタンの扱いを決めるのに使う */
   isOpen(): boolean
+  /** 全画面 API が使えない環境で、ホーム画面追加をすすめる案内を出すか */
+  setFullscreenHint(show: boolean): void
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -62,6 +64,14 @@ export function createOverlay(root: HTMLElement): Overlay {
   const startBtn = button('ゲーム開始', 'primary', 'play_arrow')
   startBtn.addEventListener('click', () => emit('start'))
   title.appendChild(startBtn)
+  // 全画面 API が使えない環境（iPhone の Safari）向けの案内。
+  // ホーム画面に追加すればブラウザの UI が消えて、描画領域が一回り広くなる
+  const fsHint = el('p', 'hint hint-fullscreen')
+  fsHint.appendChild(createIcon('add_to_home_screen', 16))
+  fsHint.appendChild(el('span', undefined, 'ホーム画面に追加すると、画面をいっぱいに使えます'))
+  fsHint.hidden = true
+  title.appendChild(fsHint)
+
   title.appendChild(el('p', 'hint', '音が出ないときは、本体のマナーモードを確認してください'))
 
   // ---- ポーズ ----
@@ -161,6 +171,10 @@ export function createOverlay(root: HTMLElement): Overlay {
 
     isOpen() {
       return root.classList.contains('is-open')
+    },
+
+    setFullscreenHint(show) {
+      fsHint.hidden = !show
     },
   }
 }

@@ -61,7 +61,9 @@ export const BOMB = {
 } as const
 
 export const FUSE = {
-  START_SEC: 9.0,
+  // 同時に出る数を大きく増やしたぶん、1 体あたりの猶予は長くする。
+  // 開始数秒で手の打ちようがなく全滅するのは「難しい」ではなく「理不尽」になる
+  START_SEC: 12.0,
   MIN_SEC: 3.2,
   /** 1 分あたりどれだけ短くなるか */
   DECAY_PER_MIN: 1.6,
@@ -73,19 +75,20 @@ export const FUSE = {
 
 export const SPAWN = {
   /**
-   * 序盤から複数のボムが四方から出てくるようにしてある。
-   * 1 個ずつ処理する単純作業にすると、最初の 30 秒がただの待ち時間になる。
+   * 最初から画面いっぱいにボムすけを出す。
+   * 落ち着いて 1 体ずつ運べる時間があると、それはもうパニックゲームではない。
+   * 開始直後から捌ききれない量が四方から出てくる状態を作る。
    */
-  BURST_AT_START: 3,
-  INTERVAL_START: 1.15,
-  INTERVAL_MIN: 0.5,
+  BURST_AT_START: 10,
+  INTERVAL_START: 0.5,
+  INTERVAL_MIN: 0.25,
   /** 指数収束の時定数（秒） */
-  TAU_SEC: 70,
+  TAU_SEC: 60,
   JITTER: 0.3,
-  FIRST_DELAY: 0.35,
-  ALIVE_START: 4,
-  ALIVE_CAP: 10,
-  ALIVE_STEP_SEC: 20,
+  FIRST_DELAY: 0.15,
+  ALIVE_START: 12,
+  ALIVE_CAP: 20,
+  ALIVE_STEP_SEC: 12,
   /** 同じ色が続く上限。これを超えたら反対の色を強制する */
   MAX_SAME_KIND_RUN: 3,
 } as const
@@ -103,7 +106,7 @@ export const SCORE = {
 /** 箱の中に溜まったボムのふるまい */
 export const STORE = {
   /** 表示しておける数。超えたら古いものから消える */
-  CAP: 28,
+  CAP: 44,
   /** 箱の中を歩き回る速さ（箱の幅に対する割合／秒） */
   DRIFT: 0.09,
   /** 見た目の大きさ（本体に対する倍率） */

@@ -64,12 +64,6 @@ describe('styleOf', () => {
     expect(contrast(COLOR.outline, COLOR.bg)).toBeGreaterThanOrEqual(2.5)
   })
 
-  it('否定の色は、赤いボムの色と取り違えないだけ離れている', () => {
-    // 同じ赤で「正しい行き先」と「ここではない」を表すと意味が衝突する
-    expect(COLOR.reject).not.toBe(styleOf('red').body)
-    expect(COLOR.reject).not.toBe(styleOf('red').binEdge)
-  })
-
   it('明暗の 3 段（ハイライト・本体・影）が順に暗くなる', () => {
     for (const k of KINDS) {
       const st = styleOf(k)

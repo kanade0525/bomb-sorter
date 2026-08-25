@@ -10,6 +10,13 @@ import { createKeyboardInput } from './input/keyboard'
 import { createPointerInput } from './input/pointer'
 import { watchHidden, watchReducedMotion } from './platform/media'
 import { mergeBest } from './platform/highscore'
+import {
+  detectSupport,
+  enterFullscreen,
+  exitFullscreen,
+  isFullscreen,
+  watchFullscreen,
+} from './platform/fullscreen'
 import { setupPwa } from './platform/pwa'
 import { loadSave, saveSave } from './platform/storage'
 import { createFx, fxMiss, fxPop, fxRing, fxShake, updateFx } from './view/draw-fx'
@@ -30,6 +37,8 @@ function must<T extends Element>(selector: string): T {
 
 const canvas = must<HTMLCanvasElement>('#game')
 const hudButtons = must<HTMLElement>('#hud-buttons')
+const stage = must<HTMLElement>('#stage')
+const fullscreenBtn = must<HTMLButtonElement>('#btn-fullscreen')
 const overlayRoot = must<HTMLElement>('#overlay')
 const muteBtn = must<HTMLButtonElement>('#btn-mute')
 const pauseBtn = must<HTMLButtonElement>('#btn-pause')
@@ -290,9 +299,34 @@ function toggleMute(): void {
   persist()
 }
 
+// ---- 全画面 ----
+// ブラウザの UI に描画領域を削られると、横持ちでは上下が特に窮屈になる。
+// 全画面 API が使える環境ではボタンを出し、使えない環境（iPhone の Safari）では
+// タイトルで「ホーム画面に追加すると全画面になる」と案内する
+const fsSupport = detectSupport()
+
+function syncFullscreenButton(): void {
+  const full = isFullscreen()
+  fullscreenBtn.hidden = !fsSupport.api || fsSupport.standalone
+  fullscreenBtn.setAttribute('aria-label', full ? '全画面をやめる' : '全画面にする')
+  setIcon(fullscreenBtn, full ? 'fullscreen_exit' : 'fullscreen', 22)
+}
+
+fullscreenBtn.addEventListener('click', () => {
+  audio.unlock()
+  audio.play('ui')
+  if (isFullscreen()) void exitFullscreen()
+  else void enterFullscreen(stage)
+})
+watchFullscreen(() => {
+  syncFullscreenButton()
+  scheduleRelayout()
+})
+
 audio.setMuted(save.muted)
 syncMuteButton()
 syncPauseButton()
+syncFullscreenButton()
 muteBtn.addEventListener('click', toggleMute)
 pauseBtn.addEventListener('click', () => command('pause'))
 
@@ -333,6 +367,9 @@ installTestHook({
     syncMuteButton()
   },
 })
+
+// 全画面にできない環境では、ホーム画面へ追加すると広く使えることを伝える
+overlay.setFullscreenHint(!fsSupport.api && !fsSupport.standalone)
 
 audio.setMode('title')
 onPhaseChanged('title', 'title')

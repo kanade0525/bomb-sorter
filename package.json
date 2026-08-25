@@ -20,7 +20,10 @@
     "e2e:ui": "playwright test tests/e2e --ui",
     "shots": "playwright test tests/shots",
     "icons": "node tools/make-icons.mjs",
-    "verify": "npm run check && npm run build && npm run e2e"
+    "verify": "npm run check && npm run build && npm run e2e",
+    "build:playables": "tsc --noEmit && PLAYABLES=1 vite build",
+    "preview:playables": "vite preview --outDir dist-playables",
+    "check:playables": "npm run build:playables && node tools/check-playables.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

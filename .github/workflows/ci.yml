@@ -59,6 +59,11 @@ jobs:
             console.log('manifest OK');
           "
 
+      # YouTube ゲームルーム向けビルドも作って、認定要件と突き合わせる。
+      # 絶対パスの混入や SDK の読み込み順は、目で見て気づける類ではない
+      - name: ゲームルーム向けビルドの検査
+        run: npm run check:playables
+
       - uses: actions/upload-artifact@v7
         with:
           name: dist

@@ -8,7 +8,8 @@ import { applyCommand, releaseAllDrags, stepWorld } from './game/step'
 import { createWorld } from './game/world'
 import { createKeyboardInput } from './input/keyboard'
 import { createPointerInput } from './input/pointer'
-import { watchHidden, watchReducedMotion } from './platform/media'
+import { STORAGE_KEY } from './core/constants'
+import { watchReducedMotion } from './platform/media'
 import { mergeBest } from './platform/highscore'
 import {
   detectSupport,
@@ -18,7 +19,8 @@ import {
   watchFullscreen,
 } from './platform/fullscreen'
 import { setupPwa } from './platform/pwa'
-import { loadSave, saveSave } from './platform/storage'
+import { detectHost, notifyAudioEnabled } from './platform/host'
+import { parseSave, serializeSave, DEFAULT_SAVE } from './platform/highscore'
 import { createFx, fxMiss, fxPop, fxRing, fxShake, updateFx } from './view/draw-fx'
 import { COLOR, styleOf } from './view/palette'
 import { clearBombSprites } from './view/bomb-sprite'
@@ -28,6 +30,7 @@ import { createSafeAreaProbe, measureViewport, type Viewport } from './view/view
 import type { Insets } from './view/layout'
 import { createOverlay } from './ui/overlay'
 import { setIcon } from './ui/icons'
+import { setLanguage, t } from './ui/strings'
 
 /** 必須要素の取得。無ければ起動しない方が原因が分かりやすい */
 function must<T extends Element>(selector: string): T {
@@ -74,9 +77,12 @@ const insetsOverride = parseInsets(params.get('insets'))
 const probe = createSafeAreaProbe()
 let vp: Viewport = measureViewport(canvas, probe, insetsOverride)
 
-// 保存データは可変で持ち、書き戻しは persist() 一本に集約する。
-// 起動時のスナップショットを使い回すと plays が巻き戻る
-const save = loadSave()
+// 保存データは場（素のウェブ / YouTube ゲームルーム）越しに読み書きする。
+// 読み込みが非同期になったので、まず初期値で起動して、あとから差し替える。
+// 書き戻しは persist() 一本に集約する — 起動時のスナップショットを使い回すと
+// plays が巻き戻る
+const host = detectHost(STORAGE_KEY)
+const save = { ...DEFAULT_SAVE }
 let best = save.best
 let bestCombo = save.bestCombo
 
@@ -84,7 +90,7 @@ function persist(): void {
   save.best = best
   save.bestCombo = bestCombo
   save.muted = audio.isMuted()
-  saveSave(save)
+  void host.save(serializeSave(save))
 }
 
 const fx = createFx()
@@ -167,6 +173,8 @@ function onPhaseChanged(from: string, to: string): void {
       bestCombo = merged.bestCombo
       save.plays = merged.plays
       persist()
+      // 場に記録を送る。素のウェブでは何も起きない
+      host.sendScore(world.score)
     }
     srAlert.textContent = `ゲームオーバー。スコア ${world.score}、ハイスコア ${best}`
   }
@@ -274,37 +282,39 @@ window.addEventListener('orientationchange', scheduleRelayout)
 window.visualViewport?.addEventListener('resize', scheduleRelayout)
 window.visualViewport?.addEventListener('scroll', scheduleRelayout)
 
-// ---- 画面が隠れたら止める。復帰は自動でしない（復帰即爆死を避ける） ----
-watchHidden(() => {
+// ---- 場から止められたら止める。復帰は自動でしない（復帰即爆死を避ける） ----
+// 素のウェブならタブが隠れたとき、YouTube ゲームルームなら SDK の onPause
+host.onPause(() => {
   if (world.phase === 'playing' || world.phase === 'ready') {
     applyCommand(world, 'pause', vp.layout)
   }
   audio.suspend()
 })
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) loop.resetClock()
-})
+host.onResume(() => loop.resetClock())
 
 // ---- ボタン ----
 function syncMuteButton(): void {
   const m = audio.isMuted()
   muteBtn.setAttribute('aria-pressed', m ? 'true' : 'false')
-  muteBtn.setAttribute('aria-label', m ? '音を出す' : '音を消す')
+  muteBtn.setAttribute('aria-label', m ? t().ariaMuteOff : t().ariaMuteOn)
   setIcon(muteBtn, m ? 'volume_off' : 'volume_up', 22)
 }
 
 /** ポーズボタンは、押したときに起きることをアイコンで示す */
 function syncPauseButton(): void {
   const paused = world.phase === 'paused'
-  pauseBtn.setAttribute('aria-label', paused ? '再開する' : '一時停止')
+  pauseBtn.setAttribute('aria-label', paused ? t().ariaResume : t().ariaPause)
   setIcon(pauseBtn, paused ? 'play_arrow' : 'pause', 22)
 }
 
 function toggleMute(): void {
   audio.unlock()
-  audio.setMuted(!audio.isMuted())
+  const next = !audio.isMuted()
+  audio.setMuted(next)
   syncMuteButton()
   persist()
+  // 素のウェブでは、このボタンが「場の音量」そのもの
+  notifyAudioEnabled(!next)
 }
 
 // ---- 全画面 ----
@@ -315,8 +325,10 @@ const fsSupport = detectSupport()
 
 function syncFullscreenButton(): void {
   const full = isFullscreen()
-  fullscreenBtn.hidden = !fsSupport.api || fsSupport.standalone
-  fullscreenBtn.setAttribute('aria-label', full ? '全画面をやめる' : '全画面にする')
+  // 場が操作を持っているなら出さない。プラットフォームの操作ボタンに似た
+  // ものをゲーム内に置くことは、YouTube ゲームルームの認定要件で禁じられている
+  fullscreenBtn.hidden = host.ownsControls || !fsSupport.api || fsSupport.standalone
+  fullscreenBtn.setAttribute('aria-label', full ? t().ariaFullscreenOff : t().ariaFullscreenOn)
   setIcon(fullscreenBtn, full ? 'fullscreen_exit' : 'fullscreen', 22)
 }
 
@@ -331,7 +343,17 @@ watchFullscreen(() => {
   scheduleRelayout()
 })
 
-audio.setMuted(save.muted)
+// 場が操作を持っているなら、ゲーム内のミュートと一時停止のボタンは出さない
+if (host.ownsControls) {
+  muteBtn.hidden = true
+  hudButtons.classList.add('is-hosted')
+}
+
+audio.setMuted(!host.isAudioEnabled())
+host.onAudioEnabledChange((enabled) => {
+  audio.setMuted(!enabled)
+  syncMuteButton()
+})
 syncMuteButton()
 syncPauseButton()
 syncFullscreenButton()
@@ -383,4 +405,50 @@ audio.setMode('title')
 onPhaseChanged('title', 'title')
 syncHudButtonPlacement()
 draw()
+
+// 最初のフレームを描いた。YouTube ゲームルームではここまでが「読み込み中」
+host.firstFrameReady()
+
 if (params.get('frozen') !== '1') loop.start()
+
+// 遊べる状態になった。読み込み画面を出している間に呼んではいけない決まりなので、
+// ループを回し始めたあとに通知する
+host.gameReady()
+
+// ---- あとから届くもの ----
+// 言葉と記録は非同期に取れる。待たずに起動して、届いたら描き直す
+void (async () => {
+  try {
+    const language = await host.getLanguage()
+    setLanguage(language)
+    document.documentElement.lang = /^ja\b/i.test(language) ? 'ja' : 'en'
+    canvas.setAttribute('aria-label', t().ariaCanvas)
+    // 画面はすでに組み立て終わっているので、言葉だけ貼り直す
+    overlay.applyLanguage()
+    syncMuteButton()
+    syncPauseButton()
+    syncFullscreenButton()
+    draw()
+  } catch (e) {
+    host.logError(e)
+  }
+
+  try {
+    const raw = await host.load()
+    const loaded = parseSave(raw)
+    save.best = loaded.best
+    save.bestCombo = loaded.bestCombo
+    save.plays = loaded.plays
+    save.muted = loaded.muted
+    best = loaded.best
+    bestCombo = loaded.bestCombo
+    // 場が音量を持っているときは、保存された設定より場の状態を優先する
+    if (!host.ownsControls) {
+      audio.setMuted(loaded.muted)
+      syncMuteButton()
+    }
+    draw()
+  } catch (e) {
+    host.logError(e)
+  }
+})()

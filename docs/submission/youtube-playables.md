@@ -180,26 +180,37 @@ Checked against the published Playables certification requirements.
 | No in-game exit or quit button                      | none                                                                                                                 |
 | Text and graphics render crisply at every density   | canvas is rendered at device resolution, capped at DPR 2, with nearest-neighbour scaling to keep the pixel art sharp |
 
-### Work required before certification
+### Integration status
 
-These are consequences of the game currently shipping as a standalone site on GitHub Pages.
-None of them are difficult; they need a separate Playables build target.
+A dedicated Playables build target now exists alongside the standalone site:
 
-| Requirement                                                                                   | Current state                                                            | What is needed                                                                                                                                                                                  |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Relative paths only, absolute paths not allowed (MUST)**                                    | The build emits `/bomb-sorter/...` because it is hosted under a sub-path | A second Vite build with `base: './'`. One-line config change, plus verification                                                                                                                |
-| **SDK must load before any game code; `firstFrameReady()` then `gameReady()` must be called** | Not integrated                                                           | Add the SDK script tag ahead of the bundle and call both at the right moments. The game already has a clean single wiring point (`src/main.ts`) and already knows when its first frame is drawn |
-| **Save data should go through `saveData()` / `loadData()`**                                   | Uses `localStorage`                                                      | Swap the two functions in `src/platform/storage.ts`. Everything that touches persistence is already isolated behind that one module                                                             |
-| **Audio must follow the platform mute state**                                                 | Own mute button                                                          | Subscribe to `isAudioEnabled()` / `onAudioEnabledChange()` and drop the in-game mute button                                                                                                     |
-| **Pause / resume must follow the platform**                                                   | Own pause button and visibility handling                                 | Subscribe to `onPause()` / `onResume()`                                                                                                                                                         |
-| **Must not show icons resembling platform controls (close, mute, menu)**                      | The HUD has mute, pause and fullscreen buttons                           | Remove all three from the Playables build. The platform owns those controls                                                                                                                     |
-| **CSP**                                                                                       | `script-src 'self'` would block the SDK                                  | Relax to allow the SDK origin in the Playables build only. The standalone build keeps the strict policy                                                                                         |
-| Score submission via `sendScore()` (optional)                                                 | Local high score only                                                    | Straightforward to add; scoring is already a pure function                                                                                                                                      |
-| Localisation (SHOULD)                                                                         | Japanese only                                                            | The interface is almost entirely numeric and iconographic. English strings are a small, contained change — roughly 20 strings                                                                   |
+```bash
+npm run build:playables   # emits dist-playables/
+npm run check:playables   # builds, then checks the output against the requirements
+```
 
-**Estimated effort for a fully certifiable build: under a day.** The architecture already keeps
-platform concerns (`src/platform/`) separate from game rules (`src/game/`), which is exactly the
-seam this work needs.
+| Requirement                                            | Status                                                                                                                                        |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Relative paths only, absolute paths not allowed (MUST) | **Done.** `dist-playables/` emits `./assets/...`; a check script fails the build if an absolute path appears                                  |
+| SDK loaded before any game code                        | **Done.** `<script src="https://www.youtube.com/game_api/v1">` is injected ahead of the module script, and a check verifies the ordering      |
+| `firstFrameReady()` then `gameReady()`                 | **Done.** `firstFrameReady()` fires after the first frame is painted; `gameReady()` after the loop starts, never while a loading screen is up |
+| Save data through `saveData()` / `loadData()`          | **Done.** Persistence goes through one seam that swaps between `localStorage` and the SDK                                                     |
+| Audio follows the platform mute state                  | **Done.** `isAudioEnabled()` at start, `onAudioEnabledChange()` thereafter                                                                    |
+| Pause / resume follows the platform                    | **Done.** `onPause()` / `onResume()`                                                                                                          |
+| No icons resembling platform controls                  | **Done.** The mute, pause and fullscreen buttons are hidden when the game detects it is running inside Playables                              |
+| Score submission via `sendScore()`                     | **Done.** Sent on game over, clamped to a safe integer                                                                                        |
+| Localisation (SHOULD)                                  | **Done.** Japanese and English, chosen from `getLanguage()`. Everything else on screen is numeric or iconographic                             |
+| No Service Worker in the Playables bundle              | **Done.** The PWA plugin is dropped from that build; the platform owns delivery and updates                                                   |
+| CSP                                                    | The standalone build keeps `connect-src 'none'`. The Playables build allows exactly one origin, `https://www.youtube.com`, for the SDK        |
+
+The Playables bundle is **84 KiB across 9 files**, with the largest single file at 53 KiB.
+
+Because the real SDK only exists inside YouTube, the integration is verified against a
+stand-in that has the same shape: seven end-to-end checks confirm the lifecycle calls fire
+once each in the right order, that the platform's mute and pause reach the game, that saves
+and score submission go through the SDK, that the language is honoured, and that the in-game
+control buttons disappear. The game also falls back to the browser implementation whenever the
+SDK is absent, so the Playables build can be opened and played locally without YouTube.
 
 ---
 

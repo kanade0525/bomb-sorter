@@ -5,6 +5,7 @@ import { drawBomb, type DrawFlags } from './draw-bomb'
 import { drawFxBack, drawFxFront, shakeOffset, type Fx } from './draw-fx'
 import { drawHud } from './draw-hud'
 import { drawEmptyHint, drawZone, type ZoneHover } from './draw-zone'
+import { t } from '../ui/strings'
 import { COLOR } from './palette'
 import { drawPixelTextShadow, pixelTextHeight } from './pixel-font'
 import { applyTransform, type Viewport } from './viewport'
@@ -108,6 +109,6 @@ function drawReady(ctx: CanvasRenderingContext2D, phaseTime: number, w: number, 
   ctx.globalAlpha = 1
   ctx.fillStyle = COLOR.textDim
   ctx.font = '600 14px system-ui, -apple-system, "Hiragino Sans", sans-serif'
-  ctx.fillText('ボムすけを同じ色の箱へ', w / 2, h / 2 + 48)
+  ctx.fillText(t().countdownHint, w / 2, h / 2 + 48)
   ctx.restore()
 }

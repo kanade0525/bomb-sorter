@@ -1,6 +1,7 @@
 # 依存とビルド成果物
 node_modules
 dist
+dist-playables
 dist-ssr
 dev-dist
 *.local

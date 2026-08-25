@@ -84,16 +84,18 @@ manifest の `start_url` がずれる類の事故が構造的に起きません�
 
 ### よく使うコマンド
 
-| コマンド          | 内容                                                   |
-| ----------------- | ------------------------------------------------------ |
-| `npm run check`   | 書式・型・単体テスト・自作検査。push 前にこれを通す    |
-| `npm run test`    | Vitest を監視モードで                                  |
-| `npm run build`   | 型チェック込みでビルド                                 |
-| `npm run preview` | ビルド結果を http://localhost:4173/bomb-sorter/ で配信 |
-| `npm run e2e`     | Playwright を iPhone / Android / デスクトップの 3 種で |
-| `npm run shots`   | 目視確認用のスクリーンショットを `shots/` に出す       |
-| `npm run icons`   | PWA アイコンと favicon をコードから描き直す            |
-| `npm run verify`  | check → build → e2e を一気に                           |
+| コマンド                  | 内容                                                            |
+| ------------------------- | --------------------------------------------------------------- |
+| `npm run check`           | 書式・型・単体テスト・自作検査。push 前にこれを通す             |
+| `npm run test`            | Vitest を監視モードで                                           |
+| `npm run build`           | 型チェック込みでビルド                                          |
+| `npm run preview`         | ビルド結果を http://localhost:4173/bomb-sorter/ で配信          |
+| `npm run e2e`             | Playwright を iPhone / Android / デスクトップの 3 種で          |
+| `npm run shots`           | 目視確認用のスクリーンショットを `shots/` に出す                |
+| `npm run icons`           | PWA アイコンと favicon をコードから描き直す                     |
+| `npm run verify`          | check → build → e2e を一気に                                    |
+| `npm run build:playables` | YouTube ゲームルーム向けのビルド（相対パス・SDK 同梱・SW なし） |
+| `npm run check:playables` | 上をビルドして、公開されている認定要件と突き合わせる            |
 
 ### URL で挙動を変えられるもの（検分用）
 

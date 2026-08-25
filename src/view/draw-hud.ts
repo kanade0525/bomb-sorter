@@ -2,6 +2,7 @@ import { FIELD, FUSE, SCORE } from '../core/constants'
 import { clamp } from '../core/math'
 import type { Layout, World } from '../core/types'
 import { comboMultiplier } from '../game/score'
+import { t } from '../ui/strings'
 import { COLOR } from './palette'
 import { drawPixelText, measurePixelText, pixelTextHeight } from './pixel-font'
 
@@ -37,7 +38,7 @@ export function drawHud(
   ctx.fillStyle = COLOR.textDim
   ctx.font = LABEL
   ctx.textAlign = 'left'
-  ctx.fillText('得点', h.x, h.y + 12)
+  ctx.fillText(t().score, h.x, h.y + 12)
 
   const scoreText = String(w.score)
   const scoreDot = scoreText.length > 7 ? 2 : scoreText.length > 5 ? 3 : 4
@@ -91,19 +92,26 @@ function drawInfo(
     const color = urgent.ratio < FUSE.CRITICAL_RATIO ? COLOR.danger : COLOR.accent
     ctx.fillStyle = color
     ctx.font = LABEL_BOLD
-    ctx.fillText('残り', x, y + 2)
-    drawPixelText(ctx, urgent.left.toFixed(1), x + 30, y, 3, color)
+    const s = t()
+    // 「残り 1.2 秒」も "1.2s left" も、数字を挟む形は同じ
+    let cursor = x
+    if (s.remainingPrefix) {
+      ctx.fillText(s.remainingPrefix, cursor, y + 2)
+      cursor += ctx.measureText(s.remainingPrefix).width + 6
+    }
+    drawPixelText(ctx, urgent.left.toFixed(1), cursor, y, 3, color)
+    cursor += measurePixelText('0.0', 3) + 4
     ctx.fillStyle = color
-    ctx.fillText('秒', x + 30 + measurePixelText('0.0', 3) + 4, y + 2)
+    ctx.fillText(s.remainingSuffix, cursor, y + 2)
   } else if (best > score) {
     ctx.fillStyle = COLOR.textDim
     ctx.font = LABEL
-    ctx.fillText('最高', x, y + 2)
-    drawPixelText(ctx, String(best), x + 26, y, 2, COLOR.textDim)
+    ctx.fillText(t().best, x, y + 2)
+    drawPixelText(ctx, String(best), x + ctx.measureText(t().best).width + 6, y, 2, COLOR.textDim)
   } else if (best > 0) {
     ctx.fillStyle = COLOR.accent
     ctx.font = LABEL_BOLD
-    ctx.fillText('新記録', x, y + 2)
+    ctx.fillText(t().newRecord, x, y + 2)
   }
 }
 
@@ -125,7 +133,7 @@ function drawCombo(
   ctx.fillStyle = COLOR.accent
   ctx.font = '700 13px system-ui, -apple-system, "Hiragino Sans", sans-serif'
   const wordRight = right - multW - 8
-  ctx.fillText('連鎖', wordRight, y + pixelTextHeight(dot) - 3)
+  ctx.fillText(t().chain, wordRight, y + pixelTextHeight(dot) - 3)
   drawPixelText(ctx, String(w.combo), wordRight - 30, y, dot, COLOR.accent, 'right')
 
   // 連鎖が切れるまでの残り。滑らかなバーではなくドットの目盛りで見せる

@@ -124,13 +124,15 @@ for (const f of src) {
     if (!base.startsWith('/') || !base.endsWith('/')) {
       ng(join(ROOT, 'vite.config.ts'), `BASE は前後をスラッシュで挟む: ${base}`)
     }
+    // index.html に base を直書きしてはいけない。
+    // Vite が base を前置するので、ルート相対で書いておけば、相対パスで吐く
+    // ビルド（YouTube ゲームルーム向け）でもそのまま正しくなる。
+    // 直書きすると相対ビルドで絶対パスのまま残り、認定要件（絶対パス禁止）に違反する
     const html = await readFile(join(ROOT, 'index.html'), 'utf8')
-    for (const ref of [...html.matchAll(/(?:href|src)="(\/[^"]*)"/g)]) {
+    for (const ref of [...html.matchAll(/(?:href|src)="([^"]*)"/g)]) {
       const url = ref[1]
-      // /src/main.ts は Vite が解決するので対象外
-      if (url.startsWith('/src/')) continue
-      if (!url.startsWith(base)) {
-        ng(join(ROOT, 'index.html'), `絶対パスが base から始まっていない: ${url}`)
+      if (url.includes(base)) {
+        ng(join(ROOT, 'index.html'), `base を直書きしている: ${url}`)
       }
     }
   }

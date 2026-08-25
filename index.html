@@ -22,8 +22,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="BombSorter" />
     <!-- apple-touch-icon は manifest から読まれないので HTML に必ず書く -->
-    <link rel="apple-touch-icon" href="/bomb-sorter/icons/apple-touch-icon.png" />
-    <link rel="icon" type="image/svg+xml" href="/bomb-sorter/favicon.svg" />
+    <!-- base を直書きしないこと。Vite が base を前置してくれるので、
+         ルート相対で書いておけば、相対パスで吐くビルド（YouTube ゲームルーム向け）でも
+         そのまま正しくなる。直書きすると絶対パスのまま残り、認定要件に違反する -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
     <title>Bomb Sorter</title>
   </head>

@@ -63,8 +63,8 @@ export function fxBurst(fx: Fx, x: number, y: number, kind: BombKind, count: num
       life: max,
       max,
       size: 2 + ((i * 7) % 3),
-      color: i % 3 === 0 ? COLOR.accent : st.bodyLight,
-      star: kind === 'round',
+      color: i % 3 === 0 ? COLOR.accent : st.light,
+      star: kind === 'red',
     })
   }
 }

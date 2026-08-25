@@ -14,7 +14,7 @@ test('manifest がサブパス込みで正しく解決される', async ({ page,
   expect(m.start_url).toBe('/bomb-sorter/')
   expect(m.scope).toBe('/bomb-sorter/')
   expect(m.display).toBe('standalone')
-  expect(m.orientation).toBe('portrait')
+  expect(m.orientation).toBe('landscape')
   expect(m.icons.length).toBeGreaterThanOrEqual(2)
   expect(m.icons.some((i: { purpose?: string }) => i.purpose === 'maskable')).toBe(true)
 

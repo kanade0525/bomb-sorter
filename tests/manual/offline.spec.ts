@@ -42,7 +42,7 @@ test('6. Service Worker 登録後にオフラインでリロード', async ({ pa
   await ready(page)
   const st = await state(page)
   console.log(`### オフライン起動: phase=${st.phase} bombs=${st.bombs.length}`)
-  const startBtn = page.getByRole('button', { name: 'はじめる' })
+  const startBtn = page.getByRole('button', { name: 'ゲーム開始' })
   await expect(startBtn).toBeVisible()
   await startBtn.click()
   await page.waitForTimeout(2500)
@@ -69,7 +69,7 @@ test('2b. 掴んだまま画面を縮めて、指を動かさずに離す', asyn
   let l = await layout(page)
   let st = await state(page)
   const bomb = st.bombs[0]!
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const low = { x: bomb.x, y: l.field.y + l.field.h - 30 }
   const ev = (p: { x: number; y: number }, buttons: number) => ({
     pointerId: 1,
@@ -96,7 +96,7 @@ test('2b. 掴んだまま画面を縮めて、指を動かさずに離す', asyn
   await page.waitForTimeout(300)
   await advance(page, 16)
   l = await layout(page)
-  const fit2 = await fitOf(canvas, l.logicalH)
+  const fit2 = await fitOf(canvas, l)
   const logicalNow = {
     x: (screenPt.x - fit2.boxX - fit2.offsetX) / fit2.scale,
     y: (screenPt.y - fit2.boxY - fit2.offsetY) / fit2.scale,

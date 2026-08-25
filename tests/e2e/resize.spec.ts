@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { FIELD } from '../../src/core/constants'
 import { advanceBy, fitOf, layout, ready, startGame, state, zoneCenter } from '../helpers/game'
 
 /**
@@ -38,13 +39,13 @@ test('ドラッグ中に画面の高さが変わっても、指を動かさず�
 
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const s = await state(page)
   const bomb = s.bombs.find((b) => b.vanish === 0)
   if (!bomb) throw new Error('ボムがない')
 
   // 誤ったゾーンの真上（縮んだあとにゾーンへ化ける帯）で保持する
-  const wrong = zoneCenter(l, bomb.kind === 'round' ? 'square' : 'round')
+  const wrong = zoneCenter(l, bomb.kind === 'red' ? 'black' : 'red')
   const holdLogical = { x: wrong.x, y: l.field.y + l.field.h - 6 }
   const clientX = fit.boxX + fit.offsetX + holdLogical.x * fit.scale
   const clientY = fit.boxY + fit.offsetY + holdLogical.y * fit.scale
@@ -90,7 +91,7 @@ test('高さが変わったあとも、新しい座標系で普通に仕分け�
 
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const s = await state(page)
   const bomb = s.bombs.find((b) => b.vanish === 0)
   if (!bomb) throw new Error('ボムがない')
@@ -134,14 +135,18 @@ test('上部のボタンは、レターボックスの内側に収まってい�
   await page.setViewportSize({ width: 1024, height: 768 })
   await page.waitForTimeout(250)
 
-  const box = await page.locator('#btn-mute').boundingBox()
+  // 個々のボタンではなく、ボタン列全体の箱で測る。
+  // 一番右のボタンは画面によって変わる（タイトルでは一時停止が隠れる）ので、
+  // 特定の 1 個を当てにすると測り方のせいで落ちる
+  const box = await page.locator('#hud-buttons').boundingBox()
   const l = await layout(page)
   const drawn = await page.evaluate(() => {
     const c = document.querySelector('canvas#game') as HTMLCanvasElement
     const r = c.getBoundingClientRect()
     return { x: r.x, y: r.y, w: r.width, h: r.height }
   })
-  const scale = Math.min(drawn.w / l.logicalW, drawn.h / l.logicalH)
+  // 実装は拡大率に上限を置いている。ここで clamp を忘れると測り方がずれる
+  const scale = Math.min(drawn.w / l.logicalW, drawn.h / l.logicalH, FIELD.MAX_SCALE)
   const offsetX = (drawn.w - l.logicalW * scale) / 2
   const rightEdge = drawn.x + offsetX + l.logicalW * scale
 

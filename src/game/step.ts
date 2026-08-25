@@ -1,14 +1,15 @@
-import { BOMB, FIELD, FUSE, INPUT, SCORE, TIMING } from '../core/constants'
+import { BOMB, FUSE, INPUT, SCORE, TIMING } from '../core/constants'
 import { clamp } from '../core/math'
-import { nextRange } from '../core/rng'
 import type { Bomb, Command, DeathReason, InputAction, Layout, World } from '../core/types'
-import { driftScale, fuseLength, maxAlive } from './difficulty'
+import { maxAlive, walkScale } from './difficulty'
+import { addStored, stepStored } from './store'
+import { walkBombs } from './walk'
 import { pickBombAt, zoneAt } from './hittest'
 import { nextPhase, type PhaseEvent } from './phase'
 import { separateBombs } from './separate'
-import { findSpawnPos, initialVelocity, nextInterval, pickKind } from './spawn'
+import { nextInterval } from './spawn'
 import { scoreGain } from './score'
-import { createBomb, resetForPlay, resetForTitle } from './world'
+import { chooseKind, resetForPlay, resetForTitle, spawnBomb } from './world'
 
 /**
  * ゲームの進行。
@@ -28,11 +29,15 @@ export function stepWorld(
 
   switch (w.phase) {
     case 'title':
-      drift(w, dt, layout, 1)
+      walkBombs(w.bombs, dt, layout.field, 1, w.rng)
+      stepStored(w.stored.red, dt)
+      stepStored(w.stored.black, dt)
       return
 
     case 'ready':
-      drift(w, dt, layout, driftScale(w.time))
+      walkBombs(w.bombs, dt, layout.field, walkScale(w.time), w.rng)
+      stepStored(w.stored.red, dt)
+      stepStored(w.stored.black, dt)
       if (w.phaseTime >= TIMING.READY_SEC) transition(w, 'ready-done')
       return
 
@@ -59,7 +64,9 @@ export function stepWorld(
   if (w.phase !== 'playing') return
 
   updateCombo(w, dt)
-  drift(w, dt, layout, driftScale(w.time))
+  walkBombs(w.bombs, dt, layout.field, walkScale(w.time), w.rng)
+  stepStored(w.stored.red, dt)
+  stepStored(w.stored.black, dt)
   updateFuse(w, dt)
   if (w.phase !== 'playing') return
   updateVanish(w, dt)
@@ -128,18 +135,25 @@ function findGrabbed(w: World, pointerId: number): Bomb | null {
   return null
 }
 
-/** ドラッグ中に指を追える範囲。ゾーンには届き、画面外へは出さない */
+/**
+ * ドラッグ中に指を追える範囲。箱には届き、画面外へは出さない。
+ *
+ * containsPoint は右端と下端を含まない（x < rect.x + rect.w）ので、端ちょうどへ
+ * clamp すると「箱の外」になる。端の外側で離した指がすべてその 1 点に写るため、
+ * 一度それが「入れたのに無反応」の死角を作った。必ず内側 1px に収める。
+ */
 function dragBounds(layout: Layout): { minX: number; maxX: number; minY: number; maxY: number } {
-  const r = BOMB.RADIUS
-  const zone = layout.zones[0]
-  const bottom = zone ? zone.rect.y + zone.rect.h : layout.logicalH - FIELD.ZONE_BOTTOM_PAD
+  const zones = layout.zones
+  const first = zones[0]
+  const last = zones[zones.length - 1]
+  const leftEdge = first ? first.rect.x : 0
+  const rightEdge = last ? last.rect.x + last.rect.w : layout.logicalW
+  const top = first ? first.rect.y : layout.field.y
+  const bottom = first ? first.rect.y + first.rect.h : layout.logicalH
   return {
-    minX: r,
-    maxX: layout.logicalW - r,
-    minY: layout.field.y,
-    // containsPoint は下端を含まない（y < rect.y + rect.h）ので、下端ちょうどに
-    // clamp すると「ゾーンの外」になる。画面下部で離した指がすべてその 1 点へ
-    // 写るため、iPhone では画面下 50px ほどが「入れたのに無反応」の死角になっていた
+    minX: leftEdge,
+    maxX: rightEdge - 1,
+    minY: Math.min(top, layout.field.y),
     maxY: bottom - 1,
   }
 }
@@ -161,8 +175,7 @@ function handleInput(w: World, actions: readonly InputAction[], layout: Layout):
         // 掴んだ瞬間に中心が指へ飛ぶと気持ち悪いので、ズレを保持する
         bomb.holdDx = bomb.x - a.x
         bomb.holdDy = bomb.y - a.y
-        bomb.vx = 0
-        bomb.vy = 0
+        bomb.speed = 0
         w.effects.push({ t: 'grab' })
         break
       }
@@ -220,6 +233,8 @@ function judgeDrop(w: World, bomb: Bomb, layout: Layout): void {
   w.comboTimer = SCORE.COMBO_WINDOW
   bomb.vanish = 0.0001
   bomb.fuse = bomb.fuseMax // 消滅演出中に時間切れさせない
+  // 仕分けた結果を箱の中に残す。数字だけでなく目で成果が分かるようにする
+  addStored(w.stored[zone.kind], bomb.kind, w.rng)
   w.effects.push({ t: 'ok', x: bomb.x, y: bomb.y, kind: bomb.kind, gain, combo: w.combo })
 }
 
@@ -228,8 +243,8 @@ function returnToField(bomb: Bomb, layout: Layout): void {
   const f = layout.field
   bomb.x = clamp(bomb.x, f.x + r, f.x + f.w - r)
   bomb.y = clamp(bomb.y, f.y + r, f.y + f.h - r)
-  bomb.vx = 0
-  bomb.vy = 0
+  bomb.speed = 0
+  bomb.turnTimer = 0
 }
 
 function updateCombo(w: World, dt: number): void {
@@ -239,42 +254,6 @@ function updateCombo(w: World, dt: number): void {
     w.combo = 0
     w.comboTimer = 0
     w.effects.push({ t: 'combo-lost' })
-  }
-}
-
-/** フィールド内を漂わせる。落下させないのは「触ってないのに誤爆死」を防ぐため */
-function drift(w: World, dt: number, layout: Layout, scale: number): void {
-  const r = BOMB.RADIUS
-  const f = layout.field
-  const maxSpeed = BOMB.DRIFT_BASE * scale * 1.6
-
-  for (const b of w.bombs) {
-    b.wobble += dt * BOMB.WOBBLE_HZ * Math.PI * 2
-    if (b.grabbedBy !== null || b.vanish > 0) continue
-
-    b.x += b.vx * dt
-    b.y += b.vy * dt
-
-    if (b.x < f.x + r) {
-      b.x = f.x + r
-      b.vx = Math.abs(b.vx)
-    } else if (b.x > f.x + f.w - r) {
-      b.x = f.x + f.w - r
-      b.vx = -Math.abs(b.vx)
-    }
-    if (b.y < f.y + r) {
-      b.y = f.y + r
-      b.vy = Math.abs(b.vy)
-    } else if (b.y > f.y + f.h - r) {
-      b.y = f.y + f.h - r
-      b.vy = -Math.abs(b.vy)
-    }
-
-    const sp = Math.hypot(b.vx, b.vy)
-    if (sp > maxSpeed && sp > 0) {
-      b.vx = (b.vx / sp) * maxSpeed
-      b.vy = (b.vy / sp) * maxSpeed
-    }
   }
 }
 
@@ -322,15 +301,7 @@ function trySpawn(w: World, dt: number, layout: Layout): void {
   w.spawnTimer -= dt
   if (w.spawnTimer > 0) return
 
-  const kind = pickKind(w.rng, w.lastKind, w.sameKindRun)
-  w.sameKindRun = kind === w.lastKind ? w.sameKindRun + 1 : 1
-  w.lastKind = kind
-
-  const p = findSpawnPos(living, layout.field, w.rng)
-  const v = initialVelocity(w.rng, driftScale(w.time))
-  const fuse = fuseLength(w.time)
-  const wob = nextRange(w.rng, 0, Math.PI * 2)
-  w.bombs.push(createBomb(w.nextId++, kind, p.x, p.y, v.x, v.y, fuse, wob))
-  w.effects.push({ t: 'spawn', x: p.x, y: p.y })
+  const bomb = spawnBomb(w, layout, chooseKind(w), w.time)
+  w.effects.push({ t: 'spawn', x: bomb.x, y: bomb.y })
   w.spawnTimer = nextInterval(w.time, w.rng)
 }

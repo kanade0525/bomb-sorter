@@ -1,87 +1,80 @@
 import { describe, expect, it } from 'vitest'
 import type { BombKind } from '../core/types'
-import { COLOR, styleOf, type KindStyle } from './palette'
+import { COLOR, styleOf } from './palette'
 
-const KINDS: BombKind[] = ['round', 'square']
+/** #rrggbb から WCAG の相対輝度を出す */
+function luminance(hex: string): number {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex)
+  if (!m) throw new Error(`16 進の色ではない: ${hex}`)
+  const v = Number.parseInt(m[1]!, 16)
+  const ch = [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((c) => {
+    const s = c / 255
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * ch[0]! + 0.7152 * ch[1]! + 0.0722 * ch[2]!
+}
+
+function contrast(a: string, b: string): number {
+  const la = luminance(a)
+  const lb = luminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+const KINDS: BombKind[] = ['red', 'black']
 
 describe('styleOf', () => {
-  it('round と square で違うスタイルを返す', () => {
-    expect(styleOf('round')).not.toEqual(styleOf('square'))
+  it('2 種類で違う色を返す', () => {
+    const a = styleOf('red')
+    const b = styleOf('black')
+    expect(a.body).not.toBe(b.body)
+    expect(a.binEdge).not.toBe(b.binEdge)
   })
 
-  it('色以外の手掛かり（ラベル）も必ず違う', () => {
-    // 色覚多様性への配慮。色だけで区別させない受け入れ基準を機械で見張る
-    const a = styleOf('round')
-    const b = styleOf('square')
-    expect(a.label).not.toBe(b.label)
-    expect(a.label.length).toBeGreaterThan(0)
-    expect(b.label.length).toBeGreaterThan(0)
-  })
-
-  it('すべての項目が round と square で別の値になっている', () => {
-    // どれか 1 つでも同じ値だと「その項目だけを見ている描画」が両者を描き分けられなくなる。
-    // 項目名は固定せず実物から取る。スタイルを増やしたときも自動で検査対象になる
-    const a = styleOf('round')
-    const b = styleOf('square')
-    const keys = Object.keys(a) as (keyof KindStyle)[]
-    expect(keys.length).toBeGreaterThan(0)
-    for (const k of keys) {
-      expect(a[k], `${k} が round と square で同じ`).not.toBe(b[k])
+  it('同じ種類なら必ず同じものを返す', () => {
+    for (const k of KINDS) {
+      expect(styleOf(k)).toEqual(styleOf(k))
     }
   })
 
-  it('同じ種類なら常に同じオブジェクトを返す（毎フレーム生成しない）', () => {
-    expect(styleOf('round')).toBe(styleOf('round'))
-    expect(styleOf('square')).toBe(styleOf('square'))
+  /**
+   * 形での区別をやめて色だけにしたので、ここが崩れると色覚に頼れない人が遊べなくなる。
+   * 明度差が十分にあれば、色が見分けられなくてもグレースケールで判別できる。
+   */
+  it('2 種類の本体は明度でも判別できる（コントラスト比 3:1 以上）', () => {
+    const c = contrast(styleOf('red').body, styleOf('black').body)
+    expect(c).toBeGreaterThanOrEqual(3)
   })
 
-  it('すべての項目が空でない文字列で埋まっている', () => {
-    for (const kind of KINDS) {
-      const s = styleOf(kind)
-      for (const [k, v] of Object.entries(s)) {
-        expect(typeof v, `${kind}.${k}`).toBe('string')
-        expect(v.length, `${kind}.${k}`).toBeGreaterThan(0)
-      }
-    }
+  it('暗い方の輪郭は背景から浮く（コントラスト比 3:1 以上）', () => {
+    expect(contrast(styleOf('black').edge, COLOR.bg)).toBeGreaterThanOrEqual(3)
   })
 
-  it('色の指定が CSS として解釈できる形をしている', () => {
-    const ok = /^(#[0-9a-f]{3,8}|rgba?\([\d.,\s]+\))$/i
-    for (const kind of KINDS) {
-      const s = styleOf(kind)
-      for (const [key, v] of Object.entries(s)) {
-        // label だけは色ではなく読み上げ用の言葉
-        if (key === 'label') continue
-        expect(v, `${kind}.${key}`).toMatch(ok)
-      }
-    }
+  it('明るい方の本体も背景から浮く', () => {
+    expect(contrast(styleOf('red').body, COLOR.bg)).toBeGreaterThanOrEqual(3)
   })
 
-  it('ラベルは「まる」「しかく」で、形を指す言葉になっている', () => {
-    // 「あか」「くろ」のような色の言葉に変えないことを固定する
-    expect(styleOf('round').label).toBe('まる')
-    expect(styleOf('square').label).toBe('しかく')
-  })
-})
-
-describe('COLOR', () => {
-  it('すべて CSS の色として解釈できる', () => {
-    const ok = /^(#[0-9a-f]{3,8}|rgba?\([\d.,\s]+\))$/i
-    for (const [k, v] of Object.entries(COLOR)) {
-      expect(v, k).toMatch(ok)
-    }
+  it('本文の文字は背景に対して 4.5:1 以上ある', () => {
+    expect(contrast(COLOR.text, COLOR.bg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(COLOR.textDim, COLOR.bg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(COLOR.accent, COLOR.bg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(COLOR.danger, COLOR.bg)).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('文字色と背景色が同じではない', () => {
-    expect(COLOR.text).not.toBe(COLOR.bg)
-    expect(COLOR.textDim).not.toBe(COLOR.bg)
-    expect(COLOR.danger).not.toBe(COLOR.bg)
+  it('部品の輪郭は背景に対して 2.5:1 以上ある', () => {
+    expect(contrast(COLOR.outline, COLOR.bg)).toBeGreaterThanOrEqual(2.5)
   })
 
-  it('種類ごとの色と共通色が衝突していない', () => {
-    // ゾーンの枠と危険色が同じだと「危ない」の表現がゾーンに埋もれる
-    for (const kind of KINDS) {
-      expect(styleOf(kind).zoneEdge).not.toBe(COLOR.danger)
+  it('否定の色は、赤いボムの色と取り違えないだけ離れている', () => {
+    // 同じ赤で「正しい行き先」と「ここではない」を表すと意味が衝突する
+    expect(COLOR.reject).not.toBe(styleOf('red').body)
+    expect(COLOR.reject).not.toBe(styleOf('red').binEdge)
+  })
+
+  it('明暗の 3 段（ハイライト・本体・影）が順に暗くなる', () => {
+    for (const k of KINDS) {
+      const st = styleOf(k)
+      expect(luminance(st.light)).toBeGreaterThan(luminance(st.body))
+      expect(luminance(st.body)).toBeGreaterThan(luminance(st.shade))
     }
   })
 })

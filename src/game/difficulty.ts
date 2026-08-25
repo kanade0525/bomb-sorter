@@ -25,7 +25,7 @@ export function maxAlive(t: number): number {
   )
 }
 
-/** 漂う速さの倍率 */
-export function driftScale(t: number): number {
-  return Math.min(BOMB.DRIFT_MAX_SCALE, 1 + Math.max(0, t) / 120)
+/** 歩く速さの倍率 */
+export function walkScale(t: number): number {
+  return Math.min(BOMB.WALK_MAX_SCALE, 1 + Math.max(0, t) / 110)
 }

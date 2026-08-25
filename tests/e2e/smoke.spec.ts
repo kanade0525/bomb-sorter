@@ -26,7 +26,7 @@ test('最初はタイトル画面で、スコアは 0', async ({ page }) => {
   const s = await state(page)
   expect(s.phase).toBe('title')
   expect(s.score).toBe(0)
-  await expect(page.getByRole('button', { name: 'はじめる' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ゲーム開始' })).toBeVisible()
 })
 
 test('横スクロールが発生しない', async ({ page }) => {
@@ -56,7 +56,7 @@ test('Canvas の実解像度は DPR 2 で打ち止めになる', async ({ page }
 test('はじめるを押すとカウントダウンを経てプレイ中になる', async ({ page }) => {
   await page.goto('./?seed=1&frozen=1')
   await ready(page)
-  await page.getByRole('button', { name: 'はじめる' }).click()
+  await page.getByRole('button', { name: 'ゲーム開始' }).click()
   expect((await state(page)).phase).toBe('ready')
   await advanceBy(page, 1800)
   expect((await state(page)).phase).toBe('playing')

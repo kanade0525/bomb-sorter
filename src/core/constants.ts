@@ -16,46 +16,46 @@ export const TIMING = {
 } as const
 
 export const FIELD = {
-  /** 論理幅は固定。当たり判定と難易度を全端末で同一にするため */
-  LOGICAL_W: 360,
-  /** 論理高さはこの範囲で伸縮させ、差は縦余白で吸収する */
-  H_MIN: 560,
-  H_MAX: 760,
   /**
-   * 拡大率の上限。タブレットでは 1.83 倍まで伸びてボムの直径が 95px、
-   * ドラッグの移動距離も 1.8 倍になり、スマホ向けの操作感から離れてしまう。
-   * 上限を置いて、大画面では中央に寄せて表示する
+   * 横持ち専用。短い方の辺（高さ）を固定して、当たり判定とボムの大きさを
+   * 全端末で同一にする。幅だけ端末の比率に応じて伸縮させ、差は
+   * 中央のフィールドの横幅として吸収する。
    */
-  MAX_SCALE: 1.5,
-  HUD_H: 64,
+  LOGICAL_H: 360,
+  W_MIN: 560,
+  W_MAX: 900,
+  /** 大画面で拡大しすぎるとスマホ向けの操作感から離れるので上限を置く */
+  MAX_SCALE: 1.6,
+  HUD_H: 40,
+  /** 左右の箱の幅 */
+  ZONE_W: 136,
+  /** 箱とフィールドの隙間 */
+  ZONE_GAP: 12,
+  EDGE_PAD: 10,
   /**
-   * HUD の右側で、DOM のボタン（音・一時停止）のために空けておく論理幅。
-   *
+   * HUD の中央で、DOM のボタン（音・一時停止）のために空けておく論理幅。
    * ボタンは Canvas の外にある DOM なので、Canvas 側の描画がここへ入り込むと重なる。
-   * ボタンの実寸は CSS で 44*2 + 隙間 4 + 右余白 8 = 100 CSS px 固定なので、
-   * いちばん拡大率が小さい端末（320px 幅で scale 0.889）でも足りるよう
-   * 100 / 0.889 ≒ 113 に余裕を足した値にしてある。
    */
-  HUD_RESERVED_RIGHT: 116,
-  ZONE_H: 140,
-  ZONE_GAP: 14,
-  EDGE_PAD: 12,
-  /** ゾーン下端の余白。ホームインジケータのスワイプ領域を避ける */
-  ZONE_BOTTOM_PAD: 16,
+  HUD_RESERVED_RIGHT: 108,
 } as const
 
 export const BOMB = {
-  RADIUS: 26,
+  RADIUS: 24,
   /** 当たり判定の上乗せ。指のズレに優しくする */
-  HIT_BONUS: 8,
-  /** 漂う速さの基準（論理px/秒） */
-  DRIFT_BASE: 14,
-  DRIFT_MAX_SCALE: 2.5,
-  WOBBLE_HZ: 0.8,
-  WOBBLE_AMP: 2.5,
+  HIT_BONUS: 9,
+  /** ピクセルアートの 1 ドットの大きさ（論理px） */
+  PIXEL: 4,
+  /** よちよち歩きの基準速度（論理px/秒） */
+  WALK_BASE: 26,
+  WALK_MAX_SCALE: 2.4,
+  /** 向きを変えるまでの間隔 */
+  TURN_MIN_SEC: 0.7,
+  TURN_MAX_SEC: 2.2,
+  /** 足の運びの速さ。歩く速さに比例させる */
+  STEP_HZ: 3.4,
   /** スポーン時に既存ボムから離す距離（RADIUS の倍数） */
-  SPAWN_MIN_GAP: 2.2,
-  SPAWN_TRIES: 12,
+  SPAWN_MIN_GAP: 2.1,
+  SPAWN_TRIES: 16,
   /** 正解時の吸い込み演出の速さ（1/秒） */
   VANISH_SPEED: 6.7,
 } as const
@@ -67,19 +67,26 @@ export const FUSE = {
   DECAY_PER_MIN: 1.6,
   WARN_RATIO: 0.35,
   CRITICAL_RATIO: 0.15,
+  /** 導火線の残量を示すドットの数 */
+  GAUGE_DOTS: 6,
 } as const
 
 export const SPAWN = {
-  INTERVAL_START: 2.2,
-  INTERVAL_MIN: 0.62,
+  /**
+   * 序盤から複数のボムが四方から出てくるようにしてある。
+   * 1 個ずつ処理する単純作業にすると、最初の 30 秒がただの待ち時間になる。
+   */
+  BURST_AT_START: 3,
+  INTERVAL_START: 1.15,
+  INTERVAL_MIN: 0.5,
   /** 指数収束の時定数（秒） */
-  TAU_SEC: 55,
-  JITTER: 0.25,
-  FIRST_DELAY: 0.6,
-  ALIVE_START: 3,
-  ALIVE_CAP: 8,
-  ALIVE_STEP_SEC: 25,
-  /** 同じ形が続く上限。これを超えたら反対の形を強制する */
+  TAU_SEC: 70,
+  JITTER: 0.3,
+  FIRST_DELAY: 0.35,
+  ALIVE_START: 4,
+  ALIVE_CAP: 10,
+  ALIVE_STEP_SEC: 20,
+  /** 同じ色が続く上限。これを超えたら反対の色を強制する */
   MAX_SAME_KIND_RUN: 3,
 } as const
 
@@ -91,6 +98,16 @@ export const SCORE = {
   COMBO_MAX_MULT: 5.0,
   /** 最後の成功から次の成功までの猶予。超えるとコンボが切れる（死なない） */
   COMBO_WINDOW: 3.0,
+} as const
+
+/** 箱の中に溜まったボムのふるまい */
+export const STORE = {
+  /** 表示しておける数。超えたら古いものから消える */
+  CAP: 28,
+  /** 箱の中を歩き回る速さ（箱の幅に対する割合／秒） */
+  DRIFT: 0.09,
+  /** 見た目の大きさ（本体に対する倍率） */
+  SCALE: 0.52,
 } as const
 
 export const INPUT = {

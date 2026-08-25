@@ -109,7 +109,7 @@ test('5. フレームレート（frozen なし）', async ({ page }) => {
   page.on('pageerror', (e) => errors.push(String(e)))
   await page.goto('./')
   await ready(page)
-  await page.getByRole('button', { name: 'はじめる' }).click()
+  await page.getByRole('button', { name: 'ゲーム開始' }).click()
   await page.waitForTimeout(2500)
   const s1 = await state(page)
   console.log(
@@ -184,7 +184,7 @@ test('2b. 掴んだまま画面を縮めて同じ画面座標で離す', async (
   let l = await layout(page)
   let st = await state(page)
   const bomb = st.bombs[0]!
-  let fit = await fitOf(canvas, l.logicalH)
+  let fit = await fitOf(canvas, l)
   // フィールド最下部近くまでドラッグ
   const low = { x: bomb.x, y: l.field.y + l.field.h - 30 }
   await canvas.dispatchEvent('pointerdown', {
@@ -217,7 +217,7 @@ test('2b. 掴んだまま画面を縮めて同じ画面座標で離す', async (
   await page.waitForTimeout(300)
   await advance(page, 16)
   l = await layout(page)
-  const fit2 = await fitOf(canvas, l.logicalH)
+  const fit2 = await fitOf(canvas, l)
   // 指は動かしていない = 同じ画面座標。それが新レイアウトで論理どこになるか
   const logicalNow = {
     x: (screenPt.x - fit2.boxX - fit2.offsetX) / fit2.scale,

@@ -19,7 +19,7 @@ test('ハイスコアが保存され、リロード後も表示される', async
 
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const bomb = (await state(page)).bombs[0]!
   await drag(page, canvas, fit, { x: bomb.x, y: bomb.y }, zoneCenter(l, bomb.kind))
 
@@ -35,7 +35,7 @@ test('ハイスコアが保存され、リロード後も表示される', async
 
   await page.reload()
   await ready(page)
-  await expect(page.getByText(`ハイスコア ${score}`, { exact: false })).toBeVisible()
+  await expect(page.getByText(`最高得点 ${score}`, { exact: false })).toBeVisible()
 })
 
 test('壊れた保存データでもクラッシュしない', async ({ page }) => {

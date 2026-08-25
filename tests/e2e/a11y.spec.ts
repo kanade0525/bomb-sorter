@@ -16,7 +16,7 @@ test('操作ボタンに読み上げ用の名前があり、タップ領域が 4
   // タイトルでは、音は切りたくなる場面なのでミュートは押せるままにしてある。
   // 一時停止はここでは意味を持たないので出さない
   await expectTapTarget(page, '音を消す')
-  await expectTapTarget(page, 'はじめる')
+  await expectTapTarget(page, 'ゲーム開始')
   await expect(page.getByRole('button', { name: '一時停止' })).toBeHidden()
 
   await startGame(page)
@@ -35,7 +35,7 @@ test('ポーズ中は「つづける」が 1 つだけで、ミュートは押�
   // 同じ機能のボタンが 2 つ並ばないこと
   await expect(page.getByRole('button', { name: '一時停止' })).toBeHidden()
   await expect(page.getByRole('button', { name: '再開する' })).toBeHidden()
-  await expect(page.getByRole('button', { name: 'つづける' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '再開' })).toBeVisible()
 
   // 音を切りたくなるのはまさにこの場面なので、ミュートは生きている
   await page.getByRole('button', { name: '音を消す' }).click()
@@ -93,7 +93,7 @@ test('キーボードだけで開始と一時停止ができる', async ({ page 
   expect((await state(page)).phase).toBe('paused')
   // frozen=1 では描画がフレーム送りなので、1 フレーム進めて画面を更新させる
   await advanceBy(page, 32)
-  await expect(page.getByRole('button', { name: 'つづける' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '再開' })).toBeVisible()
 
   // 開いた画面へフォーカスが移り、読み上げが今どの画面かを伝えられる状態になる。
   // ここから先の Tab 移動はブラウザ側の設定（WebKit のフルキーボードアクセス）に
@@ -105,7 +105,7 @@ test('キーボードだけで開始と一時停止ができる', async ({ page 
   expect(focusedInPaused).toBe(true)
 })
 
-test('レイアウトはゾーンが画面下端に食い込まない', async ({ page }) => {
+test('レイアウトは箱が画面の外へ出ない', async ({ page }) => {
   await page.goto('./?seed=1&frozen=1')
   await ready(page)
   const l = await layout(page)
@@ -114,5 +114,10 @@ test('レイアウトはゾーンが画面下端に食い込まない', async ({
     expect(z.rect.x).toBeGreaterThanOrEqual(0)
     expect(z.rect.x + z.rect.w).toBeLessThanOrEqual(l.logicalW)
   }
-  expect(l.field.y + l.field.h).toBeLessThanOrEqual(l.zones[0]!.rect.y)
+  // 横持ちなので、フィールドは左右の箱の「間」にある
+  expect(l.field.x).toBeGreaterThanOrEqual(l.zones[0]!.rect.x + l.zones[0]!.rect.w)
+  expect(l.field.x + l.field.w).toBeLessThanOrEqual(l.zones[1]!.rect.x)
+  for (const z of l.zones) {
+    expect(z.rect.y + z.rect.h).toBeLessThanOrEqual(l.logicalH)
+  }
 })

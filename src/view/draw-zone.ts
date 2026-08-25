@@ -1,9 +1,10 @@
-import { BOMB } from '../core/constants'
-import type { Zone } from '../core/types'
+import { BOMB, STORE } from '../core/constants'
+import type { StoredBomb, Zone } from '../core/types'
+import { drawBody } from './draw-bomb'
 import { COLOR, styleOf } from './palette'
 
 /**
- * 指がゾーンの上にあるときの状態。
+ * 指が箱の上にあるときの状態。
  *
  * 'wrong' を 'match' と同じ見た目にしてはいけない。誤投入は即ゲームオーバーなので、
  * 「ここに落としてよい」に見える表示を出した時点で理不尽な死を招く。
@@ -11,45 +12,43 @@ import { COLOR, styleOf } from './palette'
 export type ZoneHover = 'none' | 'match' | 'wrong'
 
 /**
- * 仕分けエリア。
- * 「色面」「大きな形アイコン」「かなのラベル」の 3 つを必ず並べるので、
- * 色が見分けられなくても形で、形が分からなくても文字で、どちらに入れるかが分かる。
+ * 仕分け先の箱。
+ *
+ * 文字のラベルは置かない。代わりに、これまで入れたボムが箱の中に残って
+ * 歩き回っているので、どちらの箱かはその中身そのものが示す。
+ * 仕分けた成果が数字ではなく目に見えて溜まっていく。
  */
 export function drawZone(
   ctx: CanvasRenderingContext2D,
   zone: Zone,
+  stored: readonly StoredBomb[],
   hover: ZoneHover,
   t: number
 ): void {
   const st = styleOf(zone.kind)
   const r = zone.rect
-  const isRound = zone.kind === 'round'
   const hovered = hover === 'match'
   const wrong = hover === 'wrong'
-  const lift = hovered ? 2 : 0
-  const y = r.y - lift
 
   ctx.save()
 
-  // 枠の丸みでも形の違いを出す
-  const corner = isRound ? 32 : 6
-
+  // ---- 箱本体 ----
   ctx.beginPath()
-  ctx.roundRect(r.x, y, r.w, r.h, corner)
-  ctx.fillStyle = st.zoneFill
+  ctx.roundRect(r.x, r.y, r.w, r.h, 10)
+  ctx.fillStyle = st.binFill
   ctx.fill()
 
   if (hovered) {
     // どこに入るかを常に見せる。グローは放射グラデーションで作る（shadowBlur は使わない）
     const g = ctx.createRadialGradient(
       r.x + r.w / 2,
-      y + r.h / 2,
-      4,
+      r.y + r.h / 2,
+      6,
       r.x + r.w / 2,
-      y + r.h / 2,
-      r.w * 0.75
+      r.y + r.h / 2,
+      r.h * 0.7
     )
-    g.addColorStop(0, st.zoneFill)
+    g.addColorStop(0, st.binFill)
     g.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.fillStyle = g
     ctx.fill()
@@ -57,79 +56,82 @@ export function drawZone(
 
   if (wrong) {
     // 「今は閉じている」ことを面で示す。枠と × だけだと、指で隠れたときに伝わらない
-    ctx.fillStyle = 'rgba(13,15,20,0.5)'
+    ctx.fillStyle = 'rgba(13,15,20,0.55)'
     ctx.fill()
   }
 
+  // ---- 中身（仕分け済みのボム） ----
+  ctx.save()
+  ctx.beginPath()
+  ctx.roundRect(r.x, r.y, r.w, r.h, 10)
+  ctx.clip()
+  ctx.globalAlpha = wrong ? 0.35 : 1
+  drawStored(ctx, zone, stored)
+  ctx.globalAlpha = 1
+  ctx.restore()
+
+  // ---- 枠 ----
   ctx.lineWidth = hovered ? 4 : 2
   // 誤りのときは枠を沈ませて「引っ込む」印象にする。太くすると誘ってしまう
-  ctx.strokeStyle = wrong ? COLOR.outline : st.zoneEdge
-  ctx.setLineDash(isRound ? [10, 7] : [])
-  ctx.lineDashOffset = isRound ? -t * 14 : 0
+  ctx.strokeStyle = wrong ? COLOR.outline : st.binEdge
+  ctx.setLineDash(hovered ? [12, 6] : [])
+  ctx.lineDashOffset = hovered ? -t * 18 : 0
+  ctx.beginPath()
+  ctx.roundRect(r.x, r.y, r.w, r.h, 10)
   ctx.stroke()
   ctx.setLineDash([])
 
-  // 形アイコン
-  const cx = zone.iconCenter.x
-  const cy = zone.iconCenter.y - lift
-  const size = BOMB.RADIUS * (hovered ? 1.08 : 1) * 0.86
-  ctx.globalAlpha = wrong ? 0.3 : 1
-  // 本体色をそのまま置くと、しかく側がゾーンの塗りに埋もれて「無効なボタン」に見える。
-  // 仕分け先は対等に見えないといけないので、ゾーン用に明るい色を別に持つ
-  ctx.fillStyle = st.zoneIcon
-  ctx.strokeStyle = wrong ? COLOR.outline : st.zoneEdge
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  if (isRound) ctx.arc(cx, cy, size, 0, Math.PI * 2)
-  else ctx.roundRect(cx - size, cy - size, size * 2, size * 2, 7)
-  ctx.fill()
-  ctx.stroke()
-
-  // 刻印（ボム本体と同じ記号にして対応関係を示す）
-  ctx.fillStyle = 'rgba(255,255,255,0.75)'
-  if (isRound) {
-    const m = size * 0.34
-    ctx.beginPath()
-    ctx.moveTo(cx, cy - m)
-    ctx.lineTo(cx + m, cy)
-    ctx.lineTo(cx, cy + m)
-    ctx.lineTo(cx - m, cy)
-    ctx.closePath()
-    ctx.fill()
-  } else {
-    const m = size * 0.26
-    ctx.beginPath()
-    ctx.arc(cx - m, cy, size * 0.15, 0, Math.PI * 2)
-    ctx.arc(cx + m, cy, size * 0.15, 0, Math.PI * 2)
-    ctx.fill()
-  }
-
-  ctx.globalAlpha = 1
-
-  // 誤りのときは大きな × を重ねる。色ではなく形で「ここではない」と伝える。
-  // アイコンと同じ大きさだと、掴んでいるボム（直径 52）と指の下に完全に隠れるので、
-  // ゾーンいっぱいに広げて腕の先が指の外に出るようにする
+  // ---- 誤りのときの × ----
+  // 掴んでいるボムと指の下に隠れないよう、箱いっぱいに広げる
   if (wrong) {
-    const zx = r.x + r.w / 2
-    const zy = y + r.h / 2
-    const k = Math.min(r.w, r.h) * 0.38
+    const cx = r.x + r.w / 2
+    const cy = r.y + r.h / 2
+    const k = Math.min(r.w, r.h) * 0.34
     ctx.strokeStyle = COLOR.reject
     ctx.lineWidth = 8
     ctx.lineCap = 'round'
     ctx.beginPath()
-    ctx.moveTo(zx - k, zy - k)
-    ctx.lineTo(zx + k, zy + k)
-    ctx.moveTo(zx + k, zy - k)
-    ctx.lineTo(zx - k, zy + k)
+    ctx.moveTo(cx - k, cy - k)
+    ctx.lineTo(cx + k, cy + k)
+    ctx.moveTo(cx + k, cy - k)
+    ctx.lineTo(cx - k, cy + k)
     ctx.stroke()
   }
 
-  // ラベル
-  ctx.fillStyle = hovered ? COLOR.text : COLOR.textDim
-  ctx.font = '700 15px system-ui, -apple-system, "Hiragino Sans", sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(st.label, cx, y + r.h - 22)
-
   ctx.restore()
+}
+
+/** 箱の中でうろうろしているボムたち */
+function drawStored(
+  ctx: CanvasRenderingContext2D,
+  zone: Zone,
+  stored: readonly StoredBomb[]
+): void {
+  const inner = zone.inner
+  const p = BOMB.PIXEL * STORE.SCALE
+
+  // 奥にいるもの（v が小さい）から描いて、手前が上に来るようにする
+  const sorted = [...stored].sort((a, b) => a.v - b.v)
+  for (const s of sorted) {
+    const x = inner.x + inner.w * s.u
+    const y = inner.y + inner.h * s.v
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(s.facing, 1)
+    drawBody(ctx, s.kind, s.step, p, false, 0.95)
+    ctx.restore()
+  }
+}
+
+/** 空の箱に出す控えめな案内。中身がまだ無いときだけ */
+export function drawEmptyHint(ctx: CanvasRenderingContext2D, zone: Zone, t: number): void {
+  const st = styleOf(zone.kind)
+  const cx = zone.rect.x + zone.rect.w / 2
+  const cy = zone.rect.y + zone.rect.h / 2
+  ctx.save()
+  ctx.globalAlpha = 0.32 + 0.08 * Math.sin(t * 2)
+  ctx.translate(cx, cy)
+  drawBody(ctx, zone.kind, 0, BOMB.PIXEL * 0.9)
+  ctx.restore()
+  void st
 }

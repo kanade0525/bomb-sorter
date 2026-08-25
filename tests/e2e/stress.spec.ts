@@ -67,7 +67,7 @@ test('同じ座標に pointerdown を 20 連打しても例外が出ず、掴み
 
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const bomb = (await state(page)).bombs[0]!
   const at = { x: bomb.x, y: bomb.y }
 
@@ -97,7 +97,7 @@ test('5 本指を同時に置いても掴まれるのは 2 個まで', async ({ 
 
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const bombs = (await state(page)).bombs.filter((b) => b.vanish === 0)
   expect(bombs.length).toBeGreaterThanOrEqual(3)
 
@@ -137,7 +137,7 @@ test('pointerup を取りこぼしたまま次の pointerdown が来ても掴み
 
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const bombs = (await state(page)).bombs.filter((b) => b.vanish === 0)
   const a = bombs[0]!
   const b = bombs[1]!
@@ -160,14 +160,14 @@ test('pointerup を取りこぼしたまま次の pointerdown が来ても掴み
 
 test('ドラッグ中に画面の大きさが変わってから離しても爆死しない', async ({ page }) => {
   const errors = collectErrors(page)
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 844, height: 390 })
   await page.goto('./?seed=2024&frozen=1')
   await ready(page)
   await startGame(page)
 
   const canvas = page.locator('canvas#game')
   const l0 = await layout(page)
-  const fit0 = await fitOf(canvas, l0.logicalH)
+  const fit0 = await fitOf(canvas, l0)
   const bomb = (await state(page)).bombs[0]!
 
   await grabOnly(canvas, fit0, { x: bomb.x, y: bomb.y }, 1)
@@ -175,11 +175,11 @@ test('ドラッグ中に画面の大きさが変わってから離しても爆�
   expect((await state(page)).bombs.some((b) => b.grabbedBy === 1)).toBe(true)
 
   // 掴んだまま横向きに近い形へ。relayout は 100ms デバウンスなので待つ
-  await page.setViewportSize({ width: 740, height: 420 })
+  await page.setViewportSize({ width: 640, height: 420 })
   await page.waitForTimeout(300)
 
   const l1 = await layout(page)
-  const fit1 = await fitOf(canvas, l1.logicalH)
+  const fit1 = await fitOf(canvas, l1)
   // 新しいレイアウトのフィールド中央（どのゾーンでもない場所）で離す
   const drop = { x: l1.field.x + l1.field.w / 2, y: l1.field.y + l1.field.h / 2 }
   await up(canvas, fit1, drop, 1)
@@ -207,17 +207,17 @@ test('ドラッグ中に画面の大きさが変わってから離しても爆�
 test('リサイズを挟んでも仕分けの判定が新しい座標系で成立する', async ({ page }) => {
   // 判定用と描画用で座標系が二重化していたら、ここでずれて誤爆する
   const errors = collectErrors(page)
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 844, height: 390 })
   await page.goto('./?seed=2024&frozen=1')
   await ready(page)
   await startGame(page)
 
-  await page.setViewportSize({ width: 360, height: 640 })
+  await page.setViewportSize({ width: 640, height: 360 })
   await page.waitForTimeout(300)
 
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const bomb = (await state(page)).bombs.filter((b) => b.vanish === 0)[0]!
 
   await grabOnly(canvas, fit, { x: bomb.x, y: bomb.y }, 1)
@@ -251,7 +251,7 @@ test('300 秒相当を回しても例外が出ず、数値が壊れない', asyn
       const s = h.getState()
       maxScore = Math.max(maxScore, s.score)
       const nums: number[] = [s.score, s.time, s.combo, s.comboTimer, s.spawnTimer]
-      for (const b of s.bombs) nums.push(b.x, b.y, b.vx, b.vy, b.fuse, b.vanish)
+      for (const b of s.bombs) nums.push(b.x, b.y, b.speed, b.dir, b.fuse, b.vanish)
       if (bad === null && nums.some((n) => !Number.isFinite(n))) {
         bad = `${i} 回目に有限でない値: ${JSON.stringify(s)}`
       }
@@ -293,7 +293,7 @@ test('タイトル画面で 300 秒放置してもボムが飛び散らない', 
     expect(b.x).toBeLessThanOrEqual(l.field.x + l.field.w + 1)
     expect(b.y).toBeGreaterThanOrEqual(l.field.y - 1)
     expect(b.y).toBeLessThanOrEqual(l.field.y + l.field.h + 1)
-    expect(Number.isFinite(b.wobble)).toBe(true)
+    expect(Number.isFinite(b.step)).toBe(true)
   }
   expect(errors, `例外:\n${errors.join('\n')}`).toEqual([])
 })
@@ -337,7 +337,7 @@ test('ボタンからのポーズと再開を往復しても playing に戻れ�
     await page.getByRole('button', { name: '一時停止' }).click()
     await advanceBy(page, 100)
     expect((await state(page)).phase).toBe('paused')
-    await page.getByRole('button', { name: 'つづける' }).click()
+    await page.getByRole('button', { name: '再開' }).click()
     await advanceBy(page, 2000)
     expect((await state(page)).phase).toBe('playing')
   }

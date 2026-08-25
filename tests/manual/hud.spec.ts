@@ -45,7 +45,7 @@ for (const s of SIZES) {
     await page.setViewportSize({ width: s.w, height: s.h })
     await page.goto('./?frozen=1&seed=31337')
     await ready(page)
-    await page.getByRole('button', { name: 'はじめる' }).click()
+    await page.getByRole('button', { name: 'ゲーム開始' }).click()
     await page.evaluate(AUTO)
     const r = await page.evaluate(() => {
       const h = window.__BOMB_SORTER__!

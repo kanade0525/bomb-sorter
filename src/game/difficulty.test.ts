@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SPAWN, FUSE, BOMB } from '../core/constants'
-import { driftScale, fuseLength, maxAlive, spawnInterval } from './difficulty'
+import { walkScale, fuseLength, maxAlive, spawnInterval } from './difficulty'
 
 describe('spawnInterval', () => {
   it('開始時は初期値と一致する', () => {
@@ -52,12 +52,12 @@ describe('fuseLength', () => {
 describe('maxAlive', () => {
   it('開始時は ALIVE_START', () => {
     expect(maxAlive(0)).toBe(SPAWN.ALIVE_START)
-    expect(maxAlive(24.9)).toBe(SPAWN.ALIVE_START)
+    expect(maxAlive(SPAWN.ALIVE_STEP_SEC - 0.1)).toBe(SPAWN.ALIVE_START)
   })
 
   it('ALIVE_STEP_SEC ごとに 1 増える', () => {
-    expect(maxAlive(25)).toBe(SPAWN.ALIVE_START + 1)
-    expect(maxAlive(50)).toBe(SPAWN.ALIVE_START + 2)
+    expect(maxAlive(SPAWN.ALIVE_STEP_SEC)).toBe(SPAWN.ALIVE_START + 1)
+    expect(maxAlive(SPAWN.ALIVE_STEP_SEC * 2)).toBe(SPAWN.ALIVE_START + 2)
   })
 
   it('上限で飽和する', () => {
@@ -65,12 +65,12 @@ describe('maxAlive', () => {
   })
 })
 
-describe('driftScale', () => {
+describe('walkScale', () => {
   it('開始時は 1 倍', () => {
-    expect(driftScale(0)).toBe(1)
+    expect(walkScale(0)).toBe(1)
   })
 
   it('上限で飽和する', () => {
-    expect(driftScale(100000)).toBe(BOMB.DRIFT_MAX_SCALE)
+    expect(walkScale(100000)).toBe(BOMB.WALK_MAX_SCALE)
   })
 })

@@ -72,8 +72,10 @@ canvas#game {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
+  /* 推奨の 44px ちょうどだと、拡大率の丸めで 43.9999px になることがある。
+     余裕を持たせて、どの端末でも確実に 44px を下回らないようにする */
+  min-width: 46px;
+  min-height: 46px;
   padding: 0;
   /* 背景 #12141a に対して約 3:1。#2b3040 では 1.4:1 で枠が見えていなかった */
   border: 1px solid #575e70;
@@ -159,6 +161,30 @@ canvas#game {
   margin: 4px 0 18px;
   font-size: 34px;
   letter-spacing: 0.02em;
+}
+
+.screen-rotate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.rotate-icon {
+  color: #ffd166;
+  animation: rotate-hint 2.4s ease-in-out infinite;
+}
+
+@keyframes rotate-hint {
+  0%,
+  55%,
+  100% {
+    transform: rotate(0deg);
+  }
+  75%,
+  90% {
+    transform: rotate(-90deg);
+  }
 }
 
 .screen h2 {

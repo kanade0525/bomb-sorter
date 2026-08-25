@@ -1,5 +1,5 @@
 import { BOMB, SPAWN } from '../core/constants'
-import { nextFloat, nextRange, nextSign } from '../core/rng'
+import { nextFloat, nextRange } from '../core/rng'
 import type { BombKind, Rect, RngState, Vec2 } from '../core/types'
 import { spawnInterval } from './difficulty'
 
@@ -10,19 +10,21 @@ export function nextInterval(t: number, rng: RngState): number {
 }
 
 /**
- * 次に出す形。基本は 50/50 だが、同じ形が MAX_SAME_KIND_RUN 回続いたら反対を強制する。
+ * 次に出す色。基本は 50/50 だが、同じ色が MAX_SAME_KIND_RUN 回続いたら反対を強制する。
  * 難易度上昇に「色の見分けにくさ」は一切使わない。上げるのは同時数・間隔・導火線・速さだけ。
  */
 export function pickKind(rng: RngState, lastKind: BombKind | null, run: number): BombKind {
   if (lastKind !== null && run >= SPAWN.MAX_SAME_KIND_RUN) {
-    return lastKind === 'round' ? 'square' : 'round'
+    return lastKind === 'red' ? 'black' : 'red'
   }
-  return nextFloat(rng) < 0.5 ? 'round' : 'square'
+  return nextFloat(rng) < 0.5 ? 'red' : 'black'
 }
 
 /**
- * 既存のボムから十分離れた位置を探す。
- * 見つからなければ最後の候補を返す（分離処理が後で押し広げるので詰みはしない）。
+ * フィールドの縁のどこかから出す。
+ *
+ * 決まった場所から 1 個ずつ出てくると、序盤が「出てくるのを待って運ぶ」だけの
+ * 単純作業になる。四方から現れるようにして、最初から視線を動かす必要を作る。
  */
 export function findSpawnPos(
   existing: readonly { x: number; y: number }[],
@@ -32,15 +34,30 @@ export function findSpawnPos(
   const r = BOMB.RADIUS
   const minGap = BOMB.RADIUS * BOMB.SPAWN_MIN_GAP
   const minGap2 = minGap * minGap
-  // 上寄りに出す。漂って中央〜下部へ降りてくるので親指圏で捌ける
-  const yMax = field.y + Math.max(r * 2, field.h * 0.45)
-  let last: Vec2 = { x: field.x + field.w / 2, y: field.y + r }
 
-  for (let i = 0; i < BOMB.SPAWN_TRIES; i++) {
-    const p = {
-      x: nextRange(rng, field.x + r, field.x + field.w - r),
-      y: nextRange(rng, field.y + r, yMax),
+  const minX = field.x + r
+  const maxX = field.x + field.w - r
+  const minY = field.y + r
+  const maxY = field.y + field.h - r
+
+  const onEdge = (): Vec2 => {
+    // 上下左右のどれか。フィールドが横長なので上下をやや厚めに選ぶ
+    const side = Math.floor(nextFloat(rng) * 4)
+    switch (side) {
+      case 0:
+        return { x: nextRange(rng, minX, maxX), y: minY }
+      case 1:
+        return { x: nextRange(rng, minX, maxX), y: maxY }
+      case 2:
+        return { x: minX, y: nextRange(rng, minY, maxY) }
+      default:
+        return { x: maxX, y: nextRange(rng, minY, maxY) }
     }
+  }
+
+  let last = onEdge()
+  for (let i = 0; i < BOMB.SPAWN_TRIES; i++) {
+    const p = onEdge()
     last = p
     let ok = true
     for (const e of existing) {
@@ -56,9 +73,11 @@ export function findSpawnPos(
   return last
 }
 
-/** 初速。ゆっくり漂わせる */
-export function initialVelocity(rng: RngState, scale: number): Vec2 {
-  const speed = BOMB.DRIFT_BASE * scale * nextRange(rng, 0.6, 1.2)
-  const angle = nextRange(rng, 0, Math.PI * 2)
-  return { x: Math.cos(angle) * speed, y: Math.abs(Math.sin(angle) * speed) * nextSign(rng) }
+/** 出てきた位置からフィールドの内側へ向かって歩き出す向き */
+export function initialDirection(pos: Vec2, field: Rect, rng: RngState): number {
+  const cx = field.x + field.w / 2
+  const cy = field.y + field.h / 2
+  const toCenter = Math.atan2(cy - pos.y, cx - pos.x)
+  // まっすぐ中心へ向かうと動きが読めてしまうので、少しばらけさせる
+  return toCenter + nextRange(rng, -0.8, 0.8)
 }

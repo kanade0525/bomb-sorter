@@ -6,11 +6,16 @@ import { computeLayout } from '../view/layout'
 import { separateBombs } from './separate'
 import { createBomb } from './world'
 
-const FIELD: Rect = computeLayout(360, 640).field
+const FIELD: Rect = computeLayout(760, 360).field
 const R = BOMB.RADIUS
 
+// 座標を直書きするとレイアウトを変えたときに壁の clamp に巻き込まれる。
+// フィールドの内側を基準にして、そこからの相対で置く
+const BX = Math.round(FIELD.x + FIELD.w / 2)
+const BY = Math.round(FIELD.y + FIELD.h / 2)
+
 function bomb(id: number, x: number, y: number, over: Partial<Bomb> = {}): Bomb {
-  return { ...createBomb(id, 'round', x, y, 0, 0, 9, 0), ...over }
+  return { ...createBomb(id, 'red', x, y, 0, 0, 9, 0), ...over }
 }
 
 function gap(a: Bomb, b: Bomb): number {
@@ -29,44 +34,44 @@ function insideField(b: Bomb): boolean {
 
 describe('separateBombs', () => {
   it('離れているボムは動かさない', () => {
-    const a = bomb(1, 100, 200)
-    const b = bomb(2, 100, 200 + R * 2 + 1)
+    const a = bomb(1, BX - 40, BY - 40)
+    const b = bomb(2, BX - 40, BY - 40 + R * 2 + 1)
     separateBombs([a, b], FIELD)
-    expect(a.y).toBe(200)
-    expect(b.y).toBe(200 + R * 2 + 1)
+    expect(a.y).toBe(BY - 40)
+    expect(b.y).toBe(BY - 40 + R * 2 + 1)
   })
 
   it('接触ちょうど（距離 = 直径）は動かさない', () => {
-    const a = bomb(1, 150, 250)
-    const b = bomb(2, 150 + R * 2, 250)
+    const a = bomb(1, BX, BY)
+    const b = bomb(2, BX + R * 2, BY)
     separateBombs([a, b], FIELD)
-    expect(a.x).toBe(150)
-    expect(b.x).toBe(150 + R * 2)
+    expect(a.x).toBe(BX)
+    expect(b.x).toBe(BX + R * 2)
   })
 
   it('重なっていれば直径ぶん離れるまで押し合う', () => {
-    const a = bomb(1, 150, 250)
-    const b = bomb(2, 160, 250)
+    const a = bomb(1, BX, BY)
+    const b = bomb(2, BX + 10, BY)
     separateBombs([a, b], FIELD)
     expect(gap(a, b)).toBeCloseTo(R * 2, 6)
     // 押しのけは対称。どちらか片方だけが動くのは不自然
-    expect(150 - a.x).toBeCloseTo(b.x - 160, 6)
+    expect(BX - a.x).toBeCloseTo(b.x - (BX + 10), 6)
   })
 
   it('完全に同一座標でも 0 除算せず分離する', () => {
-    const a = bomb(1, 180, 300)
-    const b = bomb(2, 180, 300)
+    const a = bomb(1, BX, BY)
+    const b = bomb(2, BX, BY)
     separateBombs([a, b], FIELD)
     for (const v of [a.x, a.y, b.x, b.y]) expect(Number.isFinite(v)).toBe(true)
     // 0 除算回避に d = 0.0001 を使っているので、その分だけ直径に届かない
     expect(gap(a, b)).toBeGreaterThanOrEqual(R * 2 - 1e-3)
     // 決め打ちの向き（x 方向）へ逃がす取り決め
-    expect(a.y).toBe(300)
-    expect(b.y).toBe(300)
+    expect(a.y).toBe(BY)
+    expect(b.y).toBe(BY)
   })
 
   it('同一座標が 3 個でも NaN にならない', () => {
-    const bs = [bomb(1, 180, 300), bomb(2, 180, 300), bomb(3, 180, 300)]
+    const bs = [bomb(1, BX, BY), bomb(2, BX, BY), bomb(3, BX, BY)]
     separateBombs(bs, FIELD)
     for (const b of bs) {
       expect(Number.isFinite(b.x)).toBe(true)
@@ -75,37 +80,37 @@ describe('separateBombs', () => {
   })
 
   it('掴まれているボムは動かず、相手だけが押しのけられる', () => {
-    const held = bomb(1, 150, 250, { grabbedBy: 7 })
-    const free = bomb(2, 160, 250)
+    const held = bomb(1, BX, BY, { grabbedBy: 7 })
+    const free = bomb(2, BX + 10, BY)
     separateBombs([held, free], FIELD)
-    expect(held.x).toBe(150)
-    expect(held.y).toBe(250)
+    expect(held.x).toBe(BX)
+    expect(held.y).toBe(BY)
     expect(gap(held, free)).toBeCloseTo(R * 2, 6)
   })
 
   it('掴まれている側が配列の後ろでも同じ（順序に依存しない）', () => {
-    const free = bomb(1, 150, 250)
-    const held = bomb(2, 160, 250, { grabbedBy: 7 })
+    const free = bomb(1, BX, BY)
+    const held = bomb(2, BX + 10, BY, { grabbedBy: 7 })
     separateBombs([free, held], FIELD)
-    expect(held.x).toBe(160)
-    expect(held.y).toBe(250)
+    expect(held.x).toBe(BX + 10)
+    expect(held.y).toBe(BY)
     expect(gap(held, free)).toBeCloseTo(R * 2, 6)
   })
 
   it('両方掴まれているときは何も起きない', () => {
-    const a = bomb(1, 150, 250, { grabbedBy: 1 })
-    const b = bomb(2, 152, 250, { grabbedBy: 2 })
+    const a = bomb(1, BX, BY, { grabbedBy: 1 })
+    const b = bomb(2, BX + 2, BY, { grabbedBy: 2 })
     separateBombs([a, b], FIELD)
-    expect(a.x).toBe(150)
-    expect(b.x).toBe(152)
+    expect(a.x).toBe(BX)
+    expect(b.x).toBe(BX + 2)
   })
 
   it('消滅中のボムは押しのけも押しのけられもしない', () => {
-    const vanishing = bomb(1, 150, 250, { vanish: 0.5 })
-    const free = bomb(2, 152, 250)
+    const vanishing = bomb(1, BX, BY, { vanish: 0.5 })
+    const free = bomb(2, BX + 2, BY)
     separateBombs([vanishing, free], FIELD)
-    expect(vanishing.x).toBe(150)
-    expect(free.x).toBe(152)
+    expect(vanishing.x).toBe(BX)
+    expect(free.x).toBe(BX + 2)
   })
 
   it('分離した結果がフィールド外へ出ない（隅で押し合っても）', () => {
@@ -163,19 +168,19 @@ describe('separateBombs', () => {
 
   it('空配列や 1 個でも落ちない', () => {
     expect(() => separateBombs([], FIELD)).not.toThrow()
-    const only = bomb(1, 100, 200)
+    const only = bomb(1, BX - 40, BY - 40)
     expect(() => separateBombs([only], FIELD)).not.toThrow()
-    expect(only.x).toBe(100)
+    expect(only.x).toBe(BX - 40)
   })
 
-  it('速度は書き換えない（跳ね返りは drift の責務）', () => {
-    const a = bomb(1, 150, 250, { vx: 5, vy: -7 })
-    const b = bomb(2, 158, 250, { vx: -3, vy: 2 })
+  it('歩く向きと速さは書き換えない（そこは walk の責務）', () => {
+    const a = bomb(1, BX, BY, { dir: -0.7, speed: 33 })
+    const b = bomb(2, BX + 8, BY, { dir: 2.1, speed: 11 })
     separateBombs([a, b], FIELD)
-    expect(a.vx).toBe(5)
-    expect(a.vy).toBe(-7)
-    expect(b.vx).toBe(-3)
-    expect(b.vy).toBe(2)
+    expect(a.dir).toBe(-0.7)
+    expect(a.speed).toBe(33)
+    expect(b.dir).toBe(2.1)
+    expect(b.speed).toBe(11)
   })
 
   it('フィールドの外にいるボムは 1 回の呼び出しで内側へ戻される', () => {

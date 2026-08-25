@@ -30,7 +30,7 @@ test('2c. ツールバーが出た瞬間に離すと、指を動かしていな�
     const canvas = page.locator('#game')
     let l = await layout(page)
     let st = await state(page)
-    const fit = await fitOf(canvas, l.logicalH)
+    const fit = await fitOf(canvas, l)
     const bomb = st.bombs[0]!
     // 「正解ゾーンの真上、フィールド最下部」で待機する自然な操作
     const zone = l.zones.find((z) => z.kind === bomb.kind)!
@@ -60,7 +60,7 @@ test('2c. ツールバーが出た瞬間に離すと、指を動かしていな�
     await page.waitForTimeout(300)
     await advance(page, 16)
     const l1 = await layout(page)
-    const fit1 = await fitOf(canvas, l1.logicalH)
+    const fit1 = await fitOf(canvas, l1)
     const logicalNow = {
       x: (screenPt.x - fit1.boxX - fit1.offsetX) / fit1.scale,
       y: (screenPt.y - fit1.boxY - fit1.offsetY) / fit1.scale,
@@ -100,7 +100,7 @@ test('2d. 誤ゾーンの真上で待機 → 縮小 → そのまま離す', asy
     const canvas = page.locator('#game')
     const l = await layout(page)
     let st = await state(page)
-    const fit = await fitOf(canvas, l.logicalH)
+    const fit = await fitOf(canvas, l)
     const bomb = st.bombs[0]!
     const wrong = l.zones.find((z) => z.kind !== bomb.kind)!
     const hold = { x: wrong.rect.x + wrong.rect.w / 2, y: l.field.y + l.field.h - 28 }
@@ -125,7 +125,7 @@ test('2d. 誤ゾーンの真上で待機 → 縮小 → そのまま離す', asy
     await page.waitForTimeout(300)
     await advance(page, 16)
     const l1 = await layout(page)
-    const fit1 = await fitOf(canvas, l1.logicalH)
+    const fit1 = await fitOf(canvas, l1)
     const ly = (screenPt.y - fit1.boxY - fit1.offsetY) / fit1.scale
     const lx = (screenPt.x - fit1.boxX - fit1.offsetX) / fit1.scale
     const zNow = l1.zones.find(

@@ -53,7 +53,7 @@ test('4d. なまけ者プレイでボムを 8 個まで溜め、300 秒回す', 
   })
   await page.goto('./?frozen=1&seed=8888')
   await ready(page)
-  await page.getByRole('button', { name: 'はじめる' }).click()
+  await page.getByRole('button', { name: 'ゲーム開始' }).click()
   await page.evaluate(LAZY)
   const before = await page.evaluate(() => (performance as any).memory?.usedJSHeapSize ?? null)
 
@@ -128,7 +128,7 @@ test('5c. ボム 8 個の実描画 fps とスクリーンショット', async ({
   page.on('pageerror', (e) => errors.push(String(e)))
   await page.goto('./')
   await ready(page)
-  await page.getByRole('button', { name: 'はじめる' }).click()
+  await page.getByRole('button', { name: 'ゲーム開始' }).click()
   await page.evaluate(LAZY)
   console.log(`### dpr=${await page.evaluate(() => devicePixelRatio)}`)
 

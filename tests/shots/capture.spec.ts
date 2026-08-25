@@ -20,12 +20,15 @@ async function autoPlay(page: import('@playwright/test').Page, seconds: number) 
     const h = window.__BOMB_SORTER__!
     const canvas = document.querySelector('canvas#game') as HTMLCanvasElement
     const box = canvas.getBoundingClientRect()
+    // getLayout も getState も毎回まるごと複製を返すので、
+    // ループの中で何度も呼ぶと 140 秒ぶんを回しきる前に時間切れになる
+    const l = h.getLayout()
+    const scale = Math.min(box.width / l.logicalW, box.height / l.logicalH)
+    const ox = (box.width - l.logicalW * scale) / 2
+    const oy = (box.height - l.logicalH * scale) / 2
+    const zoneOf = new Map(l.zones.map((z) => [z.kind, z]))
 
     const send = (type: string, x: number, y: number, buttons: number) => {
-      const l = h.getLayout()
-      const scale = Math.min(box.width / l.logicalW, box.height / l.logicalH)
-      const ox = (box.width - l.logicalW * scale) / 2
-      const oy = (box.height - l.logicalH * scale) / 2
       canvas.dispatchEvent(
         new PointerEvent(type, {
           pointerId: 1,
@@ -40,23 +43,25 @@ async function autoPlay(page: import('@playwright/test').Page, seconds: number) 
     }
 
     const step = 20
-    for (let t = 0; t < (sec * 1000) / step; t++) {
-      const w = h.getState()
-      if (w.phase === 'playing') {
-        // いちばん危ないボムから捌く
-        const living = w.bombs.filter((b) => b.vanish === 0 && b.grabbedBy === null)
-        living.sort((a, b) => a.fuse / a.fuseMax - b.fuse / b.fuseMax)
-        const target = living[0]
-        // 上限に近いときだけ捌いて、ボムが溜まった状態を作る
-        if (target && target.fuse / target.fuseMax < 0.45) {
-          const l = h.getLayout()
-          const zone = l.zones.find((z) => z.kind === target.kind)!
-          const to = { x: zone.rect.x + zone.rect.w / 2, y: zone.rect.y + zone.rect.h / 2 }
-          send('pointerdown', target.x, target.y, 1)
-          h.advance(step)
-          send('pointermove', to.x, to.y, 1)
-          h.advance(step)
-          send('pointerup', to.x, to.y, 0)
+    const ticks = Math.ceil((sec * 1000) / step)
+    for (let t = 0; t < ticks; t++) {
+      // 状態の取得は 3 フレームに 1 回で足りる
+      if (t % 3 === 0) {
+        const w = h.getState()
+        if (w.phase === 'playing') {
+          const living = w.bombs.filter((b) => b.vanish === 0 && b.grabbedBy === null)
+          living.sort((a, b) => a.fuse / a.fuseMax - b.fuse / b.fuseMax)
+          const target = living[0]
+          // 上限に近いときだけ捌いて、ボムが溜まった状態を作る
+          if (target && target.fuse / target.fuseMax < 0.45) {
+            const zone = zoneOf.get(target.kind)!
+            const to = { x: zone.rect.x + zone.rect.w / 2, y: zone.rect.y + zone.rect.h / 2 }
+            send('pointerdown', target.x, target.y, 1)
+            h.advance(step)
+            send('pointermove', to.x, to.y, 1)
+            h.advance(step)
+            send('pointerup', to.x, to.y, 0)
+          }
         }
       }
       h.advance(step)
@@ -65,6 +70,7 @@ async function autoPlay(page: import('@playwright/test').Page, seconds: number) 
 }
 
 test.describe.configure({ mode: 'serial' })
+test.setTimeout(120_000)
 
 const OUT = 'shots'
 
@@ -92,7 +98,7 @@ test('主要な画面を撮る', async ({ page }, info) => {
   // 4) 掴んでゾーンの上にいる状態（ハイライトの見え方を見る）
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const s = await state(page)
   const bomb = s.bombs.find((b) => b.vanish === 0)
   if (bomb && s.phase === 'playing') {
@@ -175,11 +181,11 @@ test('誤ったゾーンの上にいる状態を撮る', async ({ page }, info) 
 
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const s = await state(page)
   const bomb = s.bombs.find((b) => b.vanish === 0)
   if (!bomb) throw new Error('ボムがない')
-  const wrong = zoneCenter(l, bomb.kind === 'round' ? 'square' : 'round')
+  const wrong = zoneCenter(l, bomb.kind === 'red' ? 'black' : 'red')
 
   const at = (p: { x: number; y: number }) => ({
     clientX: fit.boxX + fit.offsetX + p.x * fit.scale,

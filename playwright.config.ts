@@ -28,8 +28,8 @@ export default defineConfig({
 
   projects: [
     // iPhone のプリセットは webkit。iOS 特有の挙動はここで見る
-    { name: 'iphone', use: { ...devices['iPhone 17'] } },
-    { name: 'android', use: { ...devices['Pixel 9'] } },
+    { name: 'iphone', use: { ...devices['iPhone 17 landscape'] } },
+    { name: 'android', use: { ...devices['Pixel 9 landscape'] } },
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
   ],
 

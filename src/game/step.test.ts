@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { INPUT, SCORE, TIMING } from '../core/constants'
+import { INPUT, SCORE, SPAWN, TIMING } from '../core/constants'
 import type { Bomb, InputAction, Layout, World } from '../core/types'
 import { computeLayout } from '../view/layout'
 import { maxAlive } from './difficulty'
 import { applyCommand, stepWorld } from './step'
 import { createWorld } from './world'
 
-const LAYOUT = computeLayout(360, 640)
+const LAYOUT = computeLayout(760, 360)
 
 /** playing に入った状態の世界を作る */
 function started(seed = 1): World {
@@ -53,7 +53,7 @@ describe('仕分けの判定', () => {
   it('誤ったゾーンへ入れると即座に爆発する', () => {
     const w = started()
     const b = firstBomb(w)
-    const wrong = b.kind === 'round' ? 'square' : 'round'
+    const wrong = b.kind === 'red' ? 'black' : 'red'
     dragTo(w, b, wrong)
     expect(w.phase).toBe('exploding')
     expect(w.deathReason).toBe('wrong')
@@ -64,7 +64,7 @@ describe('仕分けの判定', () => {
   it('爆発演出が終わるとゲームオーバーになる', () => {
     const w = started()
     const b = firstBomb(w)
-    dragTo(w, b, b.kind === 'round' ? 'square' : 'round')
+    dragTo(w, b, b.kind === 'red' ? 'black' : 'red')
     stepWorld(w, TIMING.EXPLODE_SEC + 0.01, [], LAYOUT)
     expect(w.phase).toBe('gameover')
   })
@@ -72,7 +72,7 @@ describe('仕分けの判定', () => {
   it('ドラッグ中に誤ったゾーンを通過しても、戻して離せば死なない', () => {
     const w = started()
     const b = firstBomb(w)
-    const wrong = zoneCenter(LAYOUT, b.kind === 'round' ? 'square' : 'round')
+    const wrong = zoneCenter(LAYOUT, b.kind === 'red' ? 'black' : 'red')
     stepWorld(w, 1 / 60, [{ t: 'grab', pointerId: 1, x: b.x, y: b.y }], LAYOUT)
     stepWorld(w, 1 / 60, [{ t: 'move', pointerId: 1, x: wrong.x, y: wrong.y }], LAYOUT)
     const back = { x: LAYOUT.field.x + LAYOUT.field.w / 2, y: LAYOUT.field.y + 40 }
@@ -96,7 +96,7 @@ describe('仕分けの判定', () => {
   it('着信などでドラッグが途切れてもミスにならない', () => {
     const w = started()
     const b = firstBomb(w)
-    const wrong = zoneCenter(LAYOUT, b.kind === 'round' ? 'square' : 'round')
+    const wrong = zoneCenter(LAYOUT, b.kind === 'red' ? 'black' : 'red')
     stepWorld(w, 1 / 60, [{ t: 'grab', pointerId: 1, x: b.x, y: b.y }], LAYOUT)
     stepWorld(w, 1 / 60, [{ t: 'move', pointerId: 1, x: wrong.x, y: wrong.y }], LAYOUT)
     stepWorld(w, 1 / 60, [{ t: 'cancel', pointerId: 1 }], LAYOUT)
@@ -340,7 +340,7 @@ describe('フェーズ操作', () => {
       stepWorld(w, 1 / 60, [], LAYOUT)
     }
     const next = firstBomb(w)
-    dragTo(w, next, next.kind === 'round' ? 'square' : 'round')
+    dragTo(w, next, next.kind === 'red' ? 'black' : 'red')
     stepWorld(w, TIMING.EXPLODE_SEC + 0.01, [], LAYOUT)
     expect(w.phase).toBe('gameover')
 
@@ -350,7 +350,7 @@ describe('フェーズ操作', () => {
     expect(w.combo).toBe(0)
     expect(w.time).toBe(0)
     expect(w.deathReason).toBeNull()
-    expect(w.bombs.length).toBe(1)
+    expect(w.bombs.length).toBe(SPAWN.BURST_AT_START)
   })
 
   it('タイトル画面では導火線が減らない', () => {

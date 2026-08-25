@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
 test('同じ形のばしょへ運ぶとスコアが増える', async ({ page }) => {
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const s0 = await state(page)
   const bomb = s0.bombs[0]!
 
@@ -37,9 +37,9 @@ test('同じ形のばしょへ運ぶとスコアが増える', async ({ page }) 
 test('ちがう形のばしょへ入れるとゲームオーバーになる', async ({ page }) => {
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const bomb = (await state(page)).bombs[0]!
-  const wrong = bomb.kind === 'round' ? 'square' : 'round'
+  const wrong = bomb.kind === 'red' ? 'black' : 'red'
 
   await drag(page, canvas, fit, { x: bomb.x, y: bomb.y }, zoneCenter(l, wrong))
   expect((await state(page)).phase).toBe('exploding')
@@ -48,14 +48,14 @@ test('ちがう形のばしょへ入れるとゲームオーバーになる', as
   const s = await state(page)
   expect(s.phase).toBe('gameover')
   expect(s.deathReason).toBe('wrong')
-  await expect(page.getByText('ちがう ばしょへ いれた')).toBeVisible()
+  await expect(page.getByText('違う色の箱に入れた')).toBeVisible()
   await expect(page.getByRole('button', { name: 'もう一度' })).toBeVisible()
 })
 
 test('連続で成功するとコンボが表示される', async ({ page }) => {
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
 
   for (let i = 0; i < 3; i++) {
     // 次のボムをすぐ出させて、コンボ窓が切れないようにする
@@ -87,15 +87,15 @@ test('放置すると導火線が尽きてゲームオーバーになる', async
   const s = await state(page)
   expect(s.phase).toBe('gameover')
   expect(s.deathReason).toBe('fuse')
-  await expect(page.getByText('どうかせんが つきた')).toBeVisible()
+  await expect(page.getByText('導火線が尽きた')).toBeVisible()
 })
 
 test('ドラッグ中に指が離れても（通知など）ミスにならない', async ({ page }) => {
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const bomb = (await state(page)).bombs[0]!
-  const wrong = zoneCenter(l, bomb.kind === 'round' ? 'square' : 'round')
+  const wrong = zoneCenter(l, bomb.kind === 'red' ? 'black' : 'red')
 
   await grabOnly(canvas, fit, { x: bomb.x, y: bomb.y })
   await advanceBy(page, 32)
@@ -114,7 +114,7 @@ test('一時停止すると時間が止まり、再開はカウントダウン�
   await advanceBy(page, 3000)
   expect((await state(page)).time).toBe(t)
 
-  await page.getByRole('button', { name: 'つづける' }).click()
+  await page.getByRole('button', { name: '再開' }).click()
   expect((await state(page)).phase).toBe('ready')
   await advanceBy(page, 1800)
   expect((await state(page)).phase).toBe('playing')
@@ -123,7 +123,7 @@ test('一時停止すると時間が止まり、再開はカウントダウン�
 test('もう一度でスコアが 0 に戻る', async ({ page }) => {
   const canvas = page.locator('canvas#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const bomb = (await state(page)).bombs[0]!
   await drag(page, canvas, fit, { x: bomb.x, y: bomb.y }, zoneCenter(l, bomb.kind))
   expect((await state(page)).score).toBeGreaterThan(0)

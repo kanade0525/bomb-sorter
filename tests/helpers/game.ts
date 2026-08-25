@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
+import { FIELD } from '../../src/core/constants'
 
 /**
  * Canvas ゲームを検証するための道具。
@@ -21,15 +22,26 @@ export interface Fit {
   boxY: number
 }
 
-/** 論理座標 → ページの CSS 座標。実装の computeFit と同じ式で組む */
-export async function fitOf(canvas: Locator, logicalH: number): Promise<Fit> {
+/**
+ * 論理座標 → ページの CSS 座標。実装の computeFit と同じ式で組む。
+ *
+ * 論理幅を決め打ちにしていたせいで、横持ちに変えたときに全部のドラッグが
+ * 見当違いの場所を掴むようになった。必ず layout の実際の値から出す。
+ */
+export async function fitOf(
+  canvas: Locator,
+  layout: { logicalW: number; logicalH: number }
+): Promise<Fit> {
   const box = await canvas.boundingBox()
   if (!box) throw new Error('canvas の矩形が取れない')
-  const scale = Math.min(box.width / 360, box.height / logicalH)
+  // 実装は拡大率に上限を置いている。ここで clamp を忘れると座標が全部ずれる。
+  // 当たり判定に余裕があるぶん、近い位置のボムだけ「たまたま掴めて」しまい、
+  // ずれていることに気づきにくい
+  const scale = Math.min(box.width / layout.logicalW, box.height / layout.logicalH, FIELD.MAX_SCALE)
   return {
     scale,
-    offsetX: (box.width - 360 * scale) / 2,
-    offsetY: (box.height - logicalH * scale) / 2,
+    offsetX: (box.width - layout.logicalW * scale) / 2,
+    offsetY: (box.height - layout.logicalH * scale) / 2,
     boxX: box.x,
     boxY: box.y,
   }
@@ -124,12 +136,12 @@ export async function advanceBy(page: Page, totalMs: number): Promise<void> {
 
 /** ゲームを開始して playing になるまで進める */
 export async function startGame(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'はじめる' }).click()
+  await page.getByRole('button', { name: 'ゲーム開始' }).click()
   await advanceBy(page, 1800)
   await page.waitForFunction(() => window.__BOMB_SORTER__!.getState().phase === 'playing')
 }
 
-export function zoneCenter(l: Awaited<ReturnType<typeof layout>>, kind: 'round' | 'square'): Vec {
+export function zoneCenter(l: Awaited<ReturnType<typeof layout>>, kind: 'red' | 'black'): Vec {
   const z = l.zones.find((x) => x.kind === kind)
   if (!z) throw new Error('ゾーンが無い')
   return { x: z.rect.x + z.rect.w / 2, y: z.rect.y + z.rect.h / 2 }

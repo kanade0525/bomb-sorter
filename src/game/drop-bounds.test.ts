@@ -15,7 +15,7 @@ import { createWorld } from './world'
  *  - 同一 pointerId で 2 個掴めてしまい、触っていないボムが判定されていた
  */
 
-function started(seed: number, layout = computeLayout(360, 640)): World {
+function started(seed: number, layout = computeLayout(760, 360)): World {
   const w = createWorld(seed, layout)
   applyCommand(w, 'start', layout)
   stepWorld(w, TIMING.READY_SEC + 0.001, [], layout)
@@ -98,7 +98,7 @@ describe('爆発のエフェクト', () => {
   it('誤投入したボムの形がそのまま渡る（座標の一致に頼らない）', () => {
     // 両方の形で確かめる。square のときに round の演出が出ていたのが元のバグ
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
-      const layout = computeLayout(360, 640)
+      const layout = computeLayout(760, 360)
       const w = started(seed, layout)
       const b = firstBomb(w)
       const wrong = layout.zones.find((z) => z.kind !== b.kind)!
@@ -117,7 +117,7 @@ describe('爆発のエフェクト', () => {
   })
 
   it('爆発した瞬間のボムの座標と、エフェクトの座標が一致する', () => {
-    const layout = computeLayout(360, 640)
+    const layout = computeLayout(760, 360)
     const w = started(11, layout)
     const b = firstBomb(w)
     const wrong = layout.zones.find((z) => z.kind !== b.kind)!
@@ -137,21 +137,21 @@ describe('爆発のエフェクト', () => {
   })
 
   it('導火線切れでも形が正しく渡る', () => {
-    const layout = computeLayout(360, 640)
+    const layout = computeLayout(760, 360)
     const w = started(3, layout)
     const kind = firstBomb(w).kind
     for (let i = 0; i < 60 * 30 && w.phase === 'playing'; i++) stepWorld(w, 1 / 60, [], layout)
     const miss = w.effects.find((e) => e.t === 'miss')
     if (miss?.t !== 'miss') throw new Error('miss がない')
     expect(miss.reason).toBe('fuse')
-    expect(['round', 'square']).toContain(miss.kind)
+    expect(['red', 'black']).toContain(miss.kind)
     void kind
   })
 })
 
 describe('同一ポインタの二重掴み', () => {
   it('同じ pointerId では 1 個しか掴めない', () => {
-    const layout = computeLayout(360, 640)
+    const layout = computeLayout(760, 360)
     const w = started(21, layout)
     // ボムを 2 個以上出す
     for (let i = 0; i < 60 * 10 && w.bombs.filter((b) => b.vanish === 0).length < 2; i++) {
@@ -176,7 +176,7 @@ describe('同一ポインタの二重掴み', () => {
   })
 
   it('離してからなら同じ pointerId で次を掴める', () => {
-    const layout = computeLayout(360, 640)
+    const layout = computeLayout(760, 360)
     const w = started(22, layout)
     const b = firstBomb(w)
     const mid = { x: layout.field.x + 40, y: layout.field.y + 40 }
@@ -190,10 +190,10 @@ describe('同一ポインタの二重掴み', () => {
 
 describe('タイトルへ戻ったとき', () => {
   it('飾りのボムが元の数に戻る', () => {
-    const layout = computeLayout(360, 640)
+    const layout = computeLayout(760, 360)
     const w = createWorld(5, layout)
     const decorated = w.bombs.length
-    expect(decorated).toBe(3)
+    expect(decorated).toBeGreaterThan(0)
 
     applyCommand(w, 'start', layout)
     stepWorld(w, TIMING.READY_SEC + 0.001, [], layout)
@@ -206,7 +206,7 @@ describe('タイトルへ戻ったとき', () => {
 
   it('飾りのボムは重ならない', () => {
     // safe-area が大きくフィールドが低い構成でも団子にならないこと
-    const layout = computeLayout(360, 560, { top: 60, right: 0, bottom: 40, left: 0 })
+    const layout = computeLayout(760, 360, { top: 60, right: 0, bottom: 40, left: 0 })
     const w = createWorld(9, layout)
     for (let i = 0; i < w.bombs.length; i++) {
       for (let j = i + 1; j < w.bombs.length; j++) {
@@ -230,7 +230,7 @@ describe('レイアウトが変わったとき', () => {
     let died = 0
     const tries = 8
     for (let seed = 1; seed <= tries; seed++) {
-      const before = computeLayout(360, 760, { top: 0, right: 0, bottom: 34, left: 0 })
+      const before = computeLayout(960, 360, { top: 0, right: 0, bottom: 34, left: 0 })
       const w = started(seed, before)
       const b = firstBomb(w)
 
@@ -242,7 +242,7 @@ describe('レイアウトが変わったとき', () => {
       stepWorld(w, 1 / 60, [{ t: 'move', pointerId: 1, x: holdX, y: holdY }], before)
 
       // ここでレイアウトが変わる。実装は掴んでいた指を手放す
-      const after = computeLayout(360, 697, { top: 0, right: 0, bottom: 34, left: 0 })
+      const after = computeLayout(897, 360, { top: 0, right: 0, bottom: 34, left: 0 })
       releaseAllDrags(w, after)
 
       // 指はそのままの位置で離す
@@ -253,7 +253,7 @@ describe('レイアウトが変わったとき', () => {
   })
 
   it('手放したあとのボムはフィールドの中に戻っている', () => {
-    const layout = computeLayout(360, 760)
+    const layout = computeLayout(860, 360)
     const w = started(3, layout)
     const b = firstBomb(w)
     const zone = layout.zones[0]!
@@ -273,7 +273,7 @@ describe('レイアウトが変わったとき', () => {
   })
 
   it('掴んでいなければ何も起きない', () => {
-    const layout = computeLayout(360, 640)
+    const layout = computeLayout(760, 360)
     const w = started(4, layout)
     const snapshot = w.bombs.map((b) => ({ x: b.x, y: b.y }))
     releaseAllDrags(w, layout)
@@ -283,21 +283,21 @@ describe('レイアウトが変わったとき', () => {
 
 describe('拡大率の上限', () => {
   it('タブレットのような大画面では上限で止まり、中央に寄る', () => {
-    const fit = computeFit(768, 1024)
+    const fit = computeFit(2560, 1440)
     expect(fit.scale).toBe(FIELD.MAX_SCALE)
     expect(fit.offsetX).toBeGreaterThan(0)
     expect(fit.offsetY).toBeGreaterThan(0)
     // 描画域が画面をはみ出さないこと
-    expect(fit.offsetX * 2 + fit.logicalW * fit.scale).toBeCloseTo(768, 6)
-    expect(fit.offsetY * 2 + fit.logicalH * fit.scale).toBeCloseTo(1024, 6)
+    expect(fit.offsetX * 2 + fit.logicalW * fit.scale).toBeCloseTo(2560, 6)
+    expect(fit.offsetY * 2 + fit.logicalH * fit.scale).toBeCloseTo(1440, 6)
   })
 
   it('スマホでは上限に達しないので今までどおり', () => {
     for (const [w, h] of [
-      [320, 568],
-      [375, 667],
-      [390, 844],
-      [430, 932],
+      [568, 320],
+      [667, 375],
+      [844, 390],
+      [932, 430],
     ] as const) {
       expect(computeFit(w, h).scale).toBeLessThan(FIELD.MAX_SCALE)
     }

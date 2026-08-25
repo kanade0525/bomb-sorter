@@ -59,13 +59,14 @@ export default defineConfig({
       manifest: {
         name: 'Bomb Sorter',
         short_name: 'BombSorter',
-        description: '色と形でボムを仕分けるアクションゲーム',
+        description: '歩き回るボムすけを色で仕分ける横持ちアクション',
         lang: 'ja',
         // base 配下を指す。'/' にするとホーム画面から起動して 404 になる。
         start_url: BASE,
         scope: BASE,
         display: 'standalone',
-        orientation: 'portrait',
+        // 左右の箱に振り分けるゲームなので横持ち専用
+        orientation: 'landscape',
         background_color: '#0d0f14',
         theme_color: '#0d0f14',
         icons: [

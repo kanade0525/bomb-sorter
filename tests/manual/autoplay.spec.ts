@@ -57,7 +57,7 @@ test('4c. 自動プレイで 300 秒（実際に難易度が上がる状態）',
   })
   await page.goto('./?frozen=1&seed=20260825')
   await ready(page)
-  await page.getByRole('button', { name: 'はじめる' }).click()
+  await page.getByRole('button', { name: 'ゲーム開始' }).click()
   await page.evaluate(AUTOPLAYER)
   await page.evaluate(() => {
     const h = window.__BOMB_SORTER__!
@@ -148,7 +148,7 @@ test('5b. ボム 8 個での実描画 fps', async ({ page }) => {
   page.on('pageerror', (e) => errors.push(String(e)))
   await page.goto('./')
   await ready(page)
-  await page.getByRole('button', { name: 'はじめる' }).click()
+  await page.getByRole('button', { name: 'ゲーム開始' }).click()
   await page.evaluate(AUTOPLAYER)
   const dpr = await page.evaluate(() => devicePixelRatio)
 

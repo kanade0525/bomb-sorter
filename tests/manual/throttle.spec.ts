@@ -38,7 +38,7 @@ test('5d. CPU 4 倍スロットリングでボム 8 個の fps', async ({ page, 
   page.on('pageerror', (e) => errors.push(String(e)))
   await page.goto('./')
   await ready(page)
-  await page.getByRole('button', { name: 'はじめる' }).click()
+  await page.getByRole('button', { name: 'ゲーム開始' }).click()
   await page.evaluate(LAZY)
 
   const grow = await page.evaluate(() => {

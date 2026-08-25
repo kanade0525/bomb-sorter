@@ -14,6 +14,7 @@ import { setupPwa } from './platform/pwa'
 import { loadSave, saveSave } from './platform/storage'
 import { createFx, fxMiss, fxPop, fxRing, fxShake, updateFx } from './view/draw-fx'
 import { COLOR, styleOf } from './view/palette'
+import { createFloorCache } from './view/draw-floor'
 import { render } from './view/renderer'
 import { createSafeAreaProbe, measureViewport, type Viewport } from './view/viewport'
 import type { Insets } from './view/layout'
@@ -77,6 +78,7 @@ function persist(): void {
 }
 
 const fx = createFx()
+const floor = createFloorCache()
 const audio = createAudio()
 const flags = watchReducedMotion(() => undefined)
 let world: World = createWorld(seed, vp.layout)
@@ -120,11 +122,11 @@ function drainEffects(): void {
         audio.play('ok')
         if (e.combo >= 3) audio.play('combo', e.combo)
         const st = styleOf(e.kind)
-        fxRing(fx, e.x, e.y, st.zoneEdge)
+        fxRing(fx, e.x, e.y, st.binEdge)
         // 落とした点は指の真下なので、文字は上へ逃がす。
         // 色を形依存にすると square の暗い色で読めなくなるので固定色にする
         fxPop(fx, e.x, e.y - 58, `+${e.gain}`, COLOR.text)
-        if (e.combo >= 3) fxPop(fx, e.x, e.y - 84, `${e.combo} れんさ`, COLOR.accent, 13)
+        if (e.combo >= 3) fxPop(fx, e.x, e.y - 84, `${e.combo} 連鎖`, COLOR.accent, 13)
         break
       }
       case 'miss':
@@ -195,8 +197,8 @@ function draw(): void {
   // フレーム数で数えると 120Hz 端末で装飾のアニメが 2 倍速になるので実時間を使う。
   // ゲームの進行には一切関与しない、破線が流れる速さなどの見た目専用の時刻
   renderTime = (performance.now() - startedAt) / 1000
-  render(ctx2d, { world, fx, vp, flags, best, t: renderTime })
-  overlay.update(world, best, bestCombo)
+  render(ctx2d, { world, fx, vp, flags, best, t: renderTime, floor })
+  overlay.update(world, best, bestCombo, vp.fit.portrait)
 
   // モーダルが出ている間の上部ボタンの扱い。
   //
@@ -204,7 +206,7 @@ function draw(): void {
   // 音を切りたくなるのはまさにその場面なので、ミュートは常に押せるままにする。
   // 一方ポーズボタンは、ポーズ中は「つづける」と同じ機能のボタンが 2 つある状態を
   // 作ってしまい、タイトルとゲームオーバーでは意味を持たないので隠す。
-  const modal = world.phase === 'title' || world.phase === 'paused' || world.phase === 'gameover'
+  const modal = overlay.isOpen()
   if (pauseBtn.hidden !== modal) pauseBtn.hidden = modal
   hudButtons.classList.toggle('is-dimmed', modal)
 }
@@ -214,7 +216,12 @@ const loop = createLoop(step, draw)
 // ---- リサイズ ----
 let resizeTimer = 0
 function relayout(): void {
+  const wasPortrait = vp.fit.portrait
   vp = measureViewport(canvas, probe, insetsOverride)
+  // 横持ち前提のレイアウトなので、縦にされたらそのまま遊ばせない
+  if (vp.fit.portrait && !wasPortrait && (world.phase === 'playing' || world.phase === 'ready')) {
+    applyCommand(world, 'pause', vp.layout)
+  }
   // 座標系が変わった時点で、掴んでいた指と判定の前提が食い違う。
   // 手放しておかないと、指を動かしていないのに離した瞬間に誤爆死する
   releaseAllDrags(world, vp.layout)

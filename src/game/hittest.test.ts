@@ -6,7 +6,7 @@ import { containsPoint, pickBombAt, zoneAt } from './hittest'
 import { createBomb } from './world'
 
 function bomb(id: number, x: number, y: number, over: Partial<Bomb> = {}): Bomb {
-  return { ...createBomb(id, 'round', x, y, 0, 0, 9, 0), ...over }
+  return { ...createBomb(id, 'red', x, y, 0, 0, 9, 0), ...over }
 }
 
 describe('containsPoint', () => {
@@ -63,7 +63,7 @@ describe('pickBombAt', () => {
 })
 
 describe('zoneAt', () => {
-  const layout = computeLayout(360, 640)
+  const layout = computeLayout(760, 360)
 
   it('各ゾーンの中心はそのゾーンと判定される', () => {
     for (const z of layout.zones) {
@@ -73,9 +73,9 @@ describe('zoneAt', () => {
     }
   })
 
-  it('左が しかく、右が まる で固定されている', () => {
-    expect(layout.zones[0]?.kind).toBe('square')
-    expect(layout.zones[1]?.kind).toBe('round')
+  it('左が赤、右が黒で固定されている', () => {
+    expect(layout.zones[0]?.kind).toBe('red')
+    expect(layout.zones[1]?.kind).toBe('black')
     expect(layout.zones[0]!.rect.x).toBeLessThan(layout.zones[1]!.rect.x)
   })
 

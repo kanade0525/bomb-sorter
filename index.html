@@ -8,7 +8,10 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#0d0f14" />
-    <meta name="description" content="色と形でボムを仕分けるスマホ向けアクションゲーム" />
+    <meta
+      name="description"
+      content="歩き回るボムすけを色で仕分ける、横持ちのスマホ向けアクションゲーム"
+    />
 
     <!-- CSP は本番ビルド時に vite.config.ts のプラグインが差し込む。
          ここに直接書くと dev サーバの HMR（インラインスタイルと WebSocket）が
@@ -25,10 +28,10 @@
     <title>Bomb Sorter</title>
   </head>
   <body>
-    <h1 class="sr-only">Bomb Sorter — 色と形でボムを仕分けるゲーム</h1>
+    <h1 class="sr-only">Bomb Sorter — ボムすけを色で仕分けるゲーム</h1>
 
     <div id="stage">
-      <canvas id="game" role="application" aria-label="ボム仕分けゲームの画面"></canvas>
+      <canvas id="game" role="application" aria-label="ボムすけ仕分けゲームの画面"></canvas>
 
       <!-- ボタンは Canvas に描かず実 button にする。
            キーボード操作・フォーカスリング・読み上げが無料で付いてくる。 -->

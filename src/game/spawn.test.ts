@@ -3,10 +3,10 @@ import { BOMB, SPAWN } from '../core/constants'
 import { createRng } from '../core/rng'
 import type { Rect, RngState } from '../core/types'
 import { computeLayout } from '../view/layout'
-import { driftScale, spawnInterval } from './difficulty'
-import { findSpawnPos, initialVelocity, nextInterval, pickKind } from './spawn'
+import { spawnInterval } from './difficulty'
+import { findSpawnPos, initialDirection, nextInterval, pickKind } from './spawn'
 
-const FIELD: Rect = computeLayout(360, 640).field
+const FIELD: Rect = computeLayout(760, 360).field
 const R = BOMB.RADIUS
 
 describe('nextInterval', () => {
@@ -65,7 +65,7 @@ describe('pickKind', () => {
     for (const run of [0, 1, SPAWN.MAX_SAME_KIND_RUN - 1]) {
       const rng = createRng(31 + run)
       const seen = new Set<string>()
-      for (let i = 0; i < 200; i++) seen.add(pickKind(rng, 'round', run))
+      for (let i = 0; i < 200; i++) seen.add(pickKind(rng, 'red', run))
       expect(seen.size, `run=${run} で片方に固定されている`).toBe(2)
     }
   })
@@ -73,8 +73,8 @@ describe('pickKind', () => {
   it('run が上限に達すると必ず反対の形を返す', () => {
     const rng = createRng(99)
     for (let i = 0; i < 200; i++) {
-      expect(pickKind(rng, 'round', SPAWN.MAX_SAME_KIND_RUN)).toBe('square')
-      expect(pickKind(rng, 'square', SPAWN.MAX_SAME_KIND_RUN)).toBe('round')
+      expect(pickKind(rng, 'red', SPAWN.MAX_SAME_KIND_RUN)).toBe('black')
+      expect(pickKind(rng, 'black', SPAWN.MAX_SAME_KIND_RUN)).toBe('red')
     }
   })
 
@@ -83,8 +83,8 @@ describe('pickKind', () => {
     const forced = (run: number) => {
       const rng = createRng(1234)
       const out = new Set<string>()
-      for (let i = 0; i < 300; i++) out.add(pickKind(rng, 'round', run))
-      return out.size === 1 && out.has('square')
+      for (let i = 0; i < 300; i++) out.add(pickKind(rng, 'red', run))
+      return out.size === 1 && out.has('black')
     }
     expect(forced(2)).toBe(false)
     expect(forced(3)).toBe(true)
@@ -95,7 +95,7 @@ describe('pickKind', () => {
     // 強制されるかどうかで rng の進み方が変わると、同じシードから同じ展開が出なくなる
     const rng: RngState = createRng(555)
     const before = rng.s
-    pickKind(rng, 'round', SPAWN.MAX_SAME_KIND_RUN)
+    pickKind(rng, 'red', SPAWN.MAX_SAME_KIND_RUN)
     expect(rng.s).toBe(before)
   })
 
@@ -103,7 +103,7 @@ describe('pickKind', () => {
     const rng = createRng(2468)
     let round = 0
     const n = 4000
-    for (let i = 0; i < n; i++) if (pickKind(rng, null, 0) === 'round') round++
+    for (let i = 0; i < n; i++) if (pickKind(rng, null, 0) === 'red') round++
     expect(round / n).toBeGreaterThan(0.45)
     expect(round / n).toBeLessThan(0.55)
   })
@@ -124,11 +124,30 @@ describe('findSpawnPos', () => {
     }
   })
 
-  it('上寄りに出る（漂って親指圏へ降りてくる設計）', () => {
-    const rng = createRng(17)
-    for (let i = 0; i < 500; i++) {
+  it('フィールドの縁から出る（四方から現れて序盤を単調にしない）', () => {
+    const rng: RngState = createRng(4242)
+    for (let i = 0; i < 600; i++) {
       const p = findSpawnPos([], FIELD, rng)
-      expect(p.y).toBeLessThanOrEqual(FIELD.y + Math.max(R * 2, FIELD.h * 0.45) + 1e-9)
+      const onLeft = Math.abs(p.x - (FIELD.x + R)) < 1e-6
+      const onRight = Math.abs(p.x - (FIELD.x + FIELD.w - R)) < 1e-6
+      const onTop = Math.abs(p.y - (FIELD.y + R)) < 1e-6
+      const onBottom = Math.abs(p.y - (FIELD.y + FIELD.h - R)) < 1e-6
+      expect(onLeft || onRight || onTop || onBottom, `${p.x},${p.y}`).toBe(true)
+    }
+  })
+
+  it('四方すべてから出る（偏っていない）', () => {
+    const rng: RngState = createRng(777)
+    const sides = { left: 0, right: 0, top: 0, bottom: 0 }
+    for (let i = 0; i < 800; i++) {
+      const p = findSpawnPos([], FIELD, rng)
+      if (Math.abs(p.x - (FIELD.x + R)) < 1e-6) sides.left++
+      else if (Math.abs(p.x - (FIELD.x + FIELD.w - R)) < 1e-6) sides.right++
+      else if (Math.abs(p.y - (FIELD.y + R)) < 1e-6) sides.top++
+      else sides.bottom++
+    }
+    for (const [name, n] of Object.entries(sides)) {
+      expect(n, `${name} から 1 度も出ていない`).toBeGreaterThan(50)
     }
   })
 
@@ -174,7 +193,7 @@ describe('findSpawnPos', () => {
   })
 
   it('セーフエリアを差し引いた実機相当のレイアウトでも内側を返す', () => {
-    const l = computeLayout(360, 760, { top: 59, right: 0, bottom: 34, left: 0 })
+    const l = computeLayout(960, 360, { top: 59, right: 0, bottom: 34, left: 0 })
     const rng = createRng(41)
     for (let i = 0; i < 500; i++) {
       const p = findSpawnPos([], l.field, rng)
@@ -192,55 +211,39 @@ describe('findSpawnPos', () => {
   })
 })
 
-describe('initialVelocity', () => {
-  it('速さが DRIFT_BASE * scale * 1.2 の上限内に収まる', () => {
-    const rng = createRng(53)
-    for (const scale of [1, 1.5, 2, BOMB.DRIFT_MAX_SCALE]) {
-      const max = BOMB.DRIFT_BASE * scale * 1.2
-      const min = BOMB.DRIFT_BASE * scale * 0.6
-      for (let i = 0; i < 1000; i++) {
-        const v = initialVelocity(rng, scale)
-        const sp = Math.hypot(v.x, v.y)
-        expect(sp, `scale=${scale}`).toBeLessThanOrEqual(max + 1e-9)
-        expect(sp, `scale=${scale}`).toBeGreaterThanOrEqual(min - 1e-9)
-      }
+describe('initialDirection', () => {
+  it('フィールドの内側へ向かって歩き出す', () => {
+    const rng: RngState = createRng(31)
+    const cx = FIELD.x + FIELD.w / 2
+    const cy = FIELD.y + FIELD.h / 2
+    for (let i = 0; i < 400; i++) {
+      const p = findSpawnPos([], FIELD, rng)
+      const dir = initialDirection(p, FIELD, rng)
+      // 中心へ向かうベクトルと、歩き出す向きの内積が正であること
+      const dot = Math.cos(dir) * (cx - p.x) + Math.sin(dir) * (cy - p.y)
+      expect(dot, `${p.x},${p.y}`).toBeGreaterThan(0)
     }
   })
 
-  it('drift のスピード上限（DRIFT_BASE * scale * 1.6）を超える初速は出ない', () => {
-    // 初速が上限を超えていると、出た瞬間に drift がベクトルを丸めて挙動が跳ねる
-    const rng = createRng(59)
-    for (const t of [0, 60, 180, 600]) {
-      const scale = driftScale(t)
-      const cap = BOMB.DRIFT_BASE * scale * 1.6
-      for (let i = 0; i < 500; i++) {
-        const v = initialVelocity(rng, scale)
-        expect(Math.hypot(v.x, v.y)).toBeLessThanOrEqual(cap)
-      }
+  it('毎回まっすぐ中心へは向かわない（動きが読めてしまわない）', () => {
+    const rng: RngState = createRng(99)
+    const cx = FIELD.x + FIELD.w / 2
+    const cy = FIELD.y + FIELD.h / 2
+    let varied = 0
+    for (let i = 0; i < 200; i++) {
+      const p = findSpawnPos([], FIELD, rng)
+      const dir = initialDirection(p, FIELD, rng)
+      const straight = Math.atan2(cy - p.y, cx - p.x)
+      if (Math.abs(dir - straight) > 0.05) varied++
     }
+    expect(varied).toBeGreaterThan(180)
   })
 
-  it('上下左右いずれの向きにも出る（片方向に偏らない）', () => {
-    const rng = createRng(61)
-    let up = 0
-    let down = 0
-    let left = 0
-    let right = 0
-    for (let i = 0; i < 2000; i++) {
-      const v = initialVelocity(rng, 1)
-      if (v.y < 0) up++
-      else down++
-      if (v.x < 0) left++
-      else right++
+  it('有限の値を返す', () => {
+    const rng: RngState = createRng(5)
+    for (let i = 0; i < 100; i++) {
+      const p = findSpawnPos([], FIELD, rng)
+      expect(Number.isFinite(initialDirection(p, FIELD, rng))).toBe(true)
     }
-    for (const n of [up, down, left, right]) expect(n).toBeGreaterThan(600)
-  })
-
-  it('scale が 0 でも NaN にならない', () => {
-    const rng = createRng(67)
-    const v = initialVelocity(rng, 0)
-    expect(Number.isFinite(v.x)).toBe(true)
-    expect(Number.isFinite(v.y)).toBe(true)
-    expect(Math.hypot(v.x, v.y)).toBe(0)
   })
 })

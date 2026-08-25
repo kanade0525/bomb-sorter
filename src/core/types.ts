@@ -1,11 +1,11 @@
 /**
  * ゲーム全体で使う型。
  *
- * ボムの種類を 'red' | 'black' ではなく 'round' | 'square' と形で名付けているのは意図的。
- * 色は palette.ts の写像にすぎない、という関係にしておくと
- * 「色だけで区別する UI」がコード上そもそも作りにくくなる（色覚多様性への配慮）。
+ * ボムの見た目は 2 種類とも完全に同じピクセルアートで、違うのは色だけ。
+ * 形での冗長化をやめた代わりに、赤（明るい）と黒（暗い）という明度差の大きい
+ * 組み合わせを選んである。色の区別がつかなくても、明るいか暗いかで判別できる。
  */
-export type BombKind = 'round' | 'square'
+export type BombKind = 'red' | 'black'
 
 export type Phase = 'title' | 'ready' | 'playing' | 'paused' | 'exploding' | 'gameover'
 
@@ -29,34 +29,55 @@ export interface Bomb {
   kind: BombKind
   x: number
   y: number
-  vx: number
-  vy: number
+  /** 歩く向き（ラジアン） */
+  dir: number
+  /** 現在の歩行速度 */
+  speed: number
+  /** 次に向きを変えるまでの残り秒 */
+  turnTimer: number
   /** 導火線の残り秒 */
   fuse: number
   /** この個体の導火線の初期長さ。残量比の分母 */
   fuseMax: number
   /** 掴んでいるポインタの id。掴まれていなければ null */
   grabbedBy: number | null
-  /** 見た目の揺れ用の位相。描画専用でロジックには影響しない */
-  wobble: number
+  /** 足の運びの位相。よちよち歩きの見た目に使う */
+  step: number
+  /** 向いている左右。-1 が左、1 が右 */
+  facing: -1 | 1
   /** 掴んだ瞬間の指と中心のズレ。ドラッグ中に中心が指へ飛ばないようにする */
   holdDx: number
   holdDy: number
-  /** 正解ゾーンへ入れた直後の吸い込み演出の進み（0..1）。1 で消える */
+  /** 正解の箱へ入れた直後の吸い込み演出の進み（0..1）。1 で消える */
   vanish: number
+}
+
+/**
+ * 箱の中に溜まったボム。
+ * 位置は箱の矩形に対する 0..1 の割合で持つので、画面の大きさが変わっても壊れない。
+ */
+export interface StoredBomb {
+  kind: BombKind
+  u: number
+  v: number
+  du: number
+  dv: number
+  step: number
+  facing: -1 | 1
 }
 
 export interface Zone {
   kind: BombKind
   rect: Rect
-  iconCenter: Vec2
+  /** 溜まったボムが歩き回る内側の領域 */
+  inner: Rect
 }
 
 export interface Layout {
   logicalW: number
   logicalH: number
   hud: Rect
-  /** ボムが漂える領域 */
+  /** ボムが歩き回る領域 */
   field: Rect
   zones: Zone[]
 }
@@ -97,12 +118,14 @@ export interface World {
   comboTimer: number
   bestCombo: number
   bombs: Bomb[]
+  /** 箱ごとに溜まったボム。仕分けた結果が目に見えて残る */
+  stored: Record<BombKind, StoredBomb[]>
   nextId: number
   spawnTimer: number
   rng: RngState
   effects: Effect[]
   deathReason: DeathReason | null
-  /** 同じ形が続きすぎないようにするための直近の履歴 */
+  /** 同じ色が続きすぎないようにするための直近の履歴 */
   lastKind: BombKind | null
   sameKindRun: number
   /** 直近フレームの最大警告レベル。音の発火判定に使う */

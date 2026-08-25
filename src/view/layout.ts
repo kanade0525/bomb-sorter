@@ -16,6 +16,8 @@ export interface Fit {
   scale: number
   offsetX: number
   offsetY: number
+  /** 縦持ちかどうか。横持ち専用なので、縦なら回してもらう案内を出す */
+  portrait: boolean
 }
 
 export const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 }
@@ -23,18 +25,16 @@ export const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 }
 /**
  * 画面サイズから論理解像度と拡大率を決める。
  *
- * 幅は 360 固定。当たり判定・ボムの大きさ・難易度に効く値をすべて端末非依存にして、
- * ハイスコアの公平性を保つ。高さだけ 560〜760 の範囲で伸縮させ、
- * その差はプレイフィールドの縦余白として吸収する。範囲外はレターボックスで逃がす。
+ * 横持ち専用なので、短い方の辺である高さを 360 に固定する。当たり判定・ボムの
+ * 大きさ・難易度に効く値がすべて端末非依存になり、ハイスコアの公平性を保てる。
+ * 幅だけ 560〜900 の範囲で伸縮させ、その差は中央のフィールドの横幅で吸収する。
  */
 export function computeFit(cssW: number, cssH: number): Fit {
-  const logicalW = FIELD.LOGICAL_W
+  const logicalH = FIELD.LOGICAL_H
   const w = Math.max(1, cssW)
   const h = Math.max(1, cssH)
-  const wanted = Math.round((logicalW * h) / w)
-  const logicalH = clamp(wanted, FIELD.H_MIN, FIELD.H_MAX)
-  // 大画面で無制限に拡大すると、ボムもドラッグ距離も 2 倍近くになって
-  // スマホ向けの操作感から離れる。上限を置いて中央に寄せる
+  const wanted = Math.round((logicalH * w) / h)
+  const logicalW = clamp(wanted, FIELD.W_MIN, FIELD.W_MAX)
   const scale = Math.min(w / logicalW, h / logicalH, FIELD.MAX_SCALE)
   return {
     logicalW,
@@ -42,12 +42,16 @@ export function computeFit(cssW: number, cssH: number): Fit {
     scale,
     offsetX: (w - logicalW * scale) / 2,
     offsetY: (h - logicalH * scale) / 2,
+    portrait: h > w,
   }
 }
 
 /**
  * 判定と描画が共有する唯一の座標系。
  * 判定用と描画用の座標を二重に持たない、が事故を防ぐ一番のコツ。
+ *
+ * 箱は画面の左右の端に置く。親指の付け根の可動域にそのまま入るので、
+ * 両手で持ったまま左右へ振り分けられる。
  */
 export function computeLayout(
   logicalW: number,
@@ -55,42 +59,49 @@ export function computeLayout(
   insets: Insets = NO_INSETS
 ): Layout {
   const pad = FIELD.EDGE_PAD
+  const left = pad + insets.left
+  const right = logicalW - pad - insets.right
+
   const hud = {
-    x: pad + insets.left,
-    y: insets.top + 6,
-    w: logicalW - pad * 2 - insets.left - insets.right,
+    x: left,
+    y: insets.top + 4,
+    w: right - left,
     h: FIELD.HUD_H,
   }
 
-  // ゾーンの下端。ホームインジケータのスワイプ領域を必ず空ける
-  const zoneBottom = logicalH - FIELD.ZONE_BOTTOM_PAD - insets.bottom
-  const zoneY = zoneBottom - FIELD.ZONE_H
-  const zoneW = (logicalW - pad * 2 - insets.left - insets.right - FIELD.ZONE_GAP) / 2
-  const leftX = pad + insets.left
+  const top = hud.y + hud.h + 4
+  const bottom = logicalH - pad - insets.bottom
+  const zoneH = Math.max(80, bottom - top)
+  const zoneW = Math.min(FIELD.ZONE_W, (right - left) * 0.3)
 
-  // 左が square、右が round。毎回同じ場所にあることが習熟に効くので入れ替えない
+  /** 箱の内側。溜まったボムはこの中を歩き回る */
+  const innerOf = (x: number) => ({
+    x: x + 8,
+    y: top + 10,
+    w: zoneW - 16,
+    h: zoneH - 20,
+  })
+
+  // 左が赤、右が黒で固定。毎回同じ場所にあることが習熟に効くので入れ替えない
   const zones = [
     {
-      kind: 'square' as const,
-      rect: { x: leftX, y: zoneY, w: zoneW, h: FIELD.ZONE_H },
-      iconCenter: { x: leftX + zoneW / 2, y: zoneY + FIELD.ZONE_H * 0.42 },
+      kind: 'red' as const,
+      rect: { x: left, y: top, w: zoneW, h: zoneH },
+      inner: innerOf(left),
     },
     {
-      kind: 'round' as const,
-      rect: { x: leftX + zoneW + FIELD.ZONE_GAP, y: zoneY, w: zoneW, h: FIELD.ZONE_H },
-      iconCenter: {
-        x: leftX + zoneW + FIELD.ZONE_GAP + zoneW / 2,
-        y: zoneY + FIELD.ZONE_H * 0.42,
-      },
+      kind: 'black' as const,
+      rect: { x: right - zoneW, y: top, w: zoneW, h: zoneH },
+      inner: innerOf(right - zoneW),
     },
   ]
 
-  const fieldY = hud.y + hud.h + 4
+  const fieldX = left + zoneW + FIELD.ZONE_GAP
   const field = {
-    x: pad + insets.left,
-    y: fieldY,
-    w: logicalW - pad * 2 - insets.left - insets.right,
-    h: Math.max(80, zoneY - 10 - fieldY),
+    x: fieldX,
+    y: top,
+    w: Math.max(80, right - zoneW - FIELD.ZONE_GAP - fieldX),
+    h: zoneH,
   }
 
   return { logicalW, logicalH, hud, field, zones }

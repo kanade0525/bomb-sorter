@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { FIELD, INPUT, SCORE, TIMING } from '../core/constants'
+import { FIELD, INPUT, SCORE, SPAWN, TIMING } from '../core/constants'
 import type { Bomb, BombKind, InputAction, Layout, World } from '../core/types'
 import { computeLayout } from '../view/layout'
 import { applyCommand, stepWorld } from './step'
 import { createWorld } from './world'
 
-const LAYOUT = computeLayout(360, 640)
+const LAYOUT = computeLayout(760, 360)
 
 /** playing に入った状態の世界を作る */
 function started(seed = 1): World {
@@ -51,7 +51,12 @@ function growTo(w: World, n: number): Bomb[] {
 /** 数値がすべて有限か。NaN / Infinity の汚染を一括で見る */
 function allFinite(w: World): boolean {
   const nums = [w.time, w.phaseTime, w.score, w.combo, w.comboTimer, w.spawnTimer, w.sorted]
-  for (const b of w.bombs) nums.push(b.x, b.y, b.vx, b.vy, b.fuse, b.fuseMax, b.wobble, b.vanish)
+  for (const b of w.bombs) {
+    nums.push(b.x, b.y, b.dir, b.speed, b.turnTimer, b.fuse, b.fuseMax, b.step, b.vanish)
+  }
+  for (const list of [w.stored.red, w.stored.black]) {
+    for (const s of list) nums.push(s.u, s.v, s.du, s.dv, s.step)
+  }
   return nums.every((n) => Number.isFinite(n))
 }
 
@@ -148,7 +153,7 @@ describe('入力の異常系', () => {
     const acts: InputAction[] = [
       { t: 'grab', pointerId: 1, x: 100, y: 200 },
       { t: 'move', pointerId: 1, x: 120, y: 220 },
-      { t: 'release', pointerId: 1, x: zoneCenter('round').x, y: zoneCenter('round').y },
+      { t: 'release', pointerId: 1, x: zoneCenter('red').x, y: zoneCenter('red').y },
       { t: 'cancel', pointerId: 1 },
     ]
     expect(() => stepWorld(w, 1 / 60, acts, LAYOUT)).not.toThrow()
@@ -166,7 +171,7 @@ describe('入力の異常系', () => {
       1 / 60,
       [
         { t: 'move', pointerId: 99, x: 10, y: 10 },
-        { t: 'release', pointerId: 98, x: zoneCenter('round').x, y: zoneCenter('round').y },
+        { t: 'release', pointerId: 98, x: zoneCenter('red').x, y: zoneCenter('red').y },
         { t: 'cancel', pointerId: 97 },
       ],
       LAYOUT
@@ -181,7 +186,7 @@ describe('入力の異常系', () => {
   it('掴んでいる指と違う pointerId で離しても判定は起きない', () => {
     const w = started()
     const b = firstBomb(w)
-    const wrong = zoneCenter(b.kind === 'round' ? 'square' : 'round')
+    const wrong = zoneCenter(b.kind === 'red' ? 'black' : 'red')
     stepWorld(w, 1 / 60, [{ t: 'grab', pointerId: 1, x: b.x, y: b.y }], LAYOUT)
     stepWorld(w, 1 / 60, [{ t: 'release', pointerId: 2, x: wrong.x, y: wrong.y }], LAYOUT)
     expect(w.phase).toBe('playing')
@@ -191,7 +196,7 @@ describe('入力の異常系', () => {
   it('cancel した後に同じ pointerId で release が来ても無視される', () => {
     const w = started()
     const b = firstBomb(w)
-    const wrong = zoneCenter(b.kind === 'round' ? 'square' : 'round')
+    const wrong = zoneCenter(b.kind === 'red' ? 'black' : 'red')
     stepWorld(w, 1 / 60, [{ t: 'grab', pointerId: 1, x: b.x, y: b.y }], LAYOUT)
     stepWorld(
       w,
@@ -295,11 +300,11 @@ describe('ゾーン境界での判定', () => {
     expect(w.sorted).toBe(1)
   })
 
-  it('ゾーンの右端ちょうどは外側なので、ゾーンの隙間へ落として無得点になる', () => {
-    // containsPoint は右下を含まない取り決め。左ゾーンの右端は隙間なので死なない
+  it('箱の右端ちょうどは外側なので、箱の外へ落として無得点になる', () => {
+    // containsPoint は右下を含まない取り決め。左の箱の右端は箱の外なので死なない
     const w = started()
     const b = firstBomb(w)
-    const left = zoneRect('square')
+    const left = zoneRect('red')
     dropAt(w, b, left.x + left.w, left.y + 10)
     expect(w.phase).toBe('playing')
     expect(w.sorted).toBe(0)
@@ -328,8 +333,8 @@ describe('ゾーン境界での判定', () => {
   it('ゾーンの隙間で離しても死なずフィールドへ戻る', () => {
     const w = started()
     const b = firstBomb(w)
-    const left = zoneRect('square')
-    const right = zoneRect('round')
+    const left = zoneRect('black')
+    const right = zoneRect('red')
     const midX = (left.x + left.w + right.x) / 2
     dropAt(w, b, midX, left.y + 20)
     expect(w.phase).toBe('playing')
@@ -407,7 +412,7 @@ describe('プレイ中以外の入力', () => {
       make: () => {
         const w = started()
         const b = firstBomb(w)
-        const wrong = zoneCenter(b.kind === 'round' ? 'square' : 'round')
+        const wrong = zoneCenter(b.kind === 'red' ? 'black' : 'red')
         stepWorld(w, 1 / 60, [{ t: 'grab', pointerId: 1, x: b.x, y: b.y }], LAYOUT)
         stepWorld(w, 1 / 60, [{ t: 'release', pointerId: 1, x: wrong.x, y: wrong.y }], LAYOUT)
         expect(w.phase).toBe('exploding')
@@ -419,7 +424,7 @@ describe('プレイ中以外の入力', () => {
       make: () => {
         const w = started()
         const b = firstBomb(w)
-        const wrong = zoneCenter(b.kind === 'round' ? 'square' : 'round')
+        const wrong = zoneCenter(b.kind === 'red' ? 'black' : 'red')
         stepWorld(w, 1 / 60, [{ t: 'grab', pointerId: 1, x: b.x, y: b.y }], LAYOUT)
         stepWorld(w, 1 / 60, [{ t: 'release', pointerId: 1, x: wrong.x, y: wrong.y }], LAYOUT)
         stepWorld(w, TIMING.EXPLODE_SEC + 0.01, [], LAYOUT)
@@ -444,8 +449,8 @@ describe('プレイ中以外の入力', () => {
       const acts: InputAction[] = target
         ? [
             { t: 'grab', pointerId: 1, x: target.x, y: target.y },
-            { t: 'move', pointerId: 1, x: zoneCenter('round').x, y: zoneCenter('round').y },
-            { t: 'release', pointerId: 1, x: zoneCenter('round').x, y: zoneCenter('round').y },
+            { t: 'move', pointerId: 1, x: zoneCenter('red').x, y: zoneCenter('red').y },
+            { t: 'release', pointerId: 1, x: zoneCenter('red').x, y: zoneCenter('red').y },
           ]
         : []
       stepWorld(w, 1 / 60, acts, LAYOUT)
@@ -485,7 +490,7 @@ describe('壊れたレイアウト', () => {
   })
 
   it('フィールドが下限まで潰れたレイアウトでも成立する', () => {
-    const squashed = computeLayout(FIELD.LOGICAL_W, FIELD.H_MIN)
+    const squashed = computeLayout(FIELD.W_MIN, FIELD.LOGICAL_H)
     const w = createWorld(11, squashed)
     applyCommand(w, 'start', squashed)
     stepWorld(w, TIMING.READY_SEC + 0.001, [], squashed)
@@ -530,7 +535,7 @@ describe('同じフレームに重なる出来事', () => {
     const bs = growTo(w, 2)
     const a = bs[0]!
     const b = bs[1]!
-    const wrong = zoneCenter(a.kind === 'round' ? 'square' : 'round')
+    const wrong = zoneCenter(a.kind === 'red' ? 'black' : 'red')
     const right = zoneCenter(b.kind)
     stepWorld(
       w,
@@ -553,7 +558,7 @@ describe('同じフレームに重なる出来事', () => {
     const bs = growTo(w, 2)
     const a = bs[0]!
     const b = bs[1]!
-    const wrong = zoneCenter(a.kind === 'round' ? 'square' : 'round')
+    const wrong = zoneCenter(a.kind === 'red' ? 'black' : 'red')
     stepWorld(w, 1 / 60, [{ t: 'grab', pointerId: 2, x: b.x, y: b.y }], LAYOUT)
     stepWorld(
       w,
@@ -573,7 +578,7 @@ describe('フェーズ操作の連打', () => {
   it('restart を連打しても初期化が二重に走らない', () => {
     const w = started()
     const b = firstBomb(w)
-    const wrong = zoneCenter(b.kind === 'round' ? 'square' : 'round')
+    const wrong = zoneCenter(b.kind === 'red' ? 'black' : 'red')
     stepWorld(w, 1 / 60, [{ t: 'grab', pointerId: 1, x: b.x, y: b.y }], LAYOUT)
     stepWorld(w, 1 / 60, [{ t: 'release', pointerId: 1, x: wrong.x, y: wrong.y }], LAYOUT)
     stepWorld(w, TIMING.EXPLODE_SEC + 0.01, [], LAYOUT)
@@ -581,9 +586,10 @@ describe('フェーズ操作の連打', () => {
 
     for (let i = 0; i < 10; i++) applyCommand(w, 'restart', LAYOUT)
     expect(w.phase).toBe('ready')
-    expect(w.bombs.length).toBe(1)
+    expect(w.bombs.length).toBe(SPAWN.BURST_AT_START)
     expect(w.score).toBe(0)
-    expect(w.nextId).toBe(2)
+    // 初期化が二重に走っていれば、id は初期スポーンぶんより先へ進んでいる
+    expect(w.nextId).toBe(SPAWN.BURST_AT_START + 1)
     stepWorld(w, TIMING.READY_SEC + 0.001, [], LAYOUT)
     expect(w.phase).toBe('playing')
   })
@@ -613,14 +619,14 @@ describe('フェーズ操作の連打', () => {
     applyCommand(w, 'restart', LAYOUT)
     expect(w.phase).toBe('ready')
     expect(w.score).toBe(0)
-    expect(w.bombs.length).toBe(1)
+    expect(w.bombs.length).toBe(SPAWN.BURST_AT_START)
   })
 
   it('start を連打してもゲームが二重に始まらない', () => {
     const w = createWorld(5, LAYOUT)
     for (let i = 0; i < 5; i++) applyCommand(w, 'start', LAYOUT)
     expect(w.phase).toBe('ready')
-    expect(w.bombs.length).toBe(1)
+    expect(w.bombs.length).toBe(SPAWN.BURST_AT_START)
   })
 })
 
@@ -654,8 +660,8 @@ describe('長時間の連続プレイ', () => {
     expect(w.comboTimer).toBeLessThanOrEqual(SCORE.COMBO_WINDOW)
     expect(w.bombs.length).toBeLessThanOrEqual(16)
     for (const b of w.bombs) {
-      expect(b.wobble).toBeLessThan(Number.MAX_SAFE_INTEGER)
-      expect(Math.hypot(b.vx, b.vy)).toBeLessThan(1000)
+      expect(b.step).toBeLessThan(Number.MAX_SAFE_INTEGER)
+      expect(b.speed).toBeLessThan(1000)
     }
   })
 

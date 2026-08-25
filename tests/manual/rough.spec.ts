@@ -48,7 +48,7 @@ test('2. ドラッグ中にビューポートを変える', async ({ page }) => 
     `### before: logicalH=${l.logicalH} bomb=(${bomb.x.toFixed(1)},${bomb.y.toFixed(1)}) kind=${bomb.kind} fuse=${bomb.fuse.toFixed(2)}`
   )
 
-  let fit = await fitOf(canvas, l.logicalH)
+  let fit = await fitOf(canvas, l)
   await fire(page, 'pointerdown', toClient(fit, bomb))
   await advance(page, 16)
   st = await state(page)
@@ -77,7 +77,7 @@ test('2. ドラッグ中にビューポートを変える', async ({ page }) => 
   expect(st.phase, 'ローテーションで爆死してはいけない').toBe('playing')
 
   // 元の座標のまま指を離す（回転でここはゾーンの上かもしれない）
-  fit = await fitOf(canvas, l.logicalH)
+  fit = await fitOf(canvas, l)
   await fire(page, 'pointerup', toClient(fit, { x: bomb.x, y: bomb.y }))
   await advance(page, 16)
   st = await state(page)
@@ -94,7 +94,7 @@ test('3a. 同じ座標に pointerdown 20 連打', async ({ page }) => {
   await advanceBy(page, 2000)
   const canvas = page.locator('#game')
   const l = await layout(page)
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   const st0 = await state(page)
   const b = st0.bombs[0]!
   for (let i = 0; i < 20; i++) {
@@ -125,7 +125,7 @@ test('3b. 5 本指を同時に置く', async ({ page }) => {
   }
   const l = await layout(page)
   const canvas = page.locator('#game')
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   console.log(`### 5本指テスト開始: phase=${st.phase} bombs=${st.bombs.length}`)
   const targets = st.bombs.slice(0, 5)
   for (let i = 0; i < 5; i++) {
@@ -140,7 +140,7 @@ test('3b. 5 本指を同時に置く', async ({ page }) => {
   )
   expect(heldCount, '同時ドラッグ上限 2 を超えてはいけない').toBeLessThanOrEqual(2)
   // 全部ゾーンへ移動して離す
-  const zc = zoneCenter(l, 'round')
+  const zc = zoneCenter(l, 'red')
   for (let i = 0; i < 5; i++) {
     await fire(page, 'pointermove', toClient(fit, zc), 10 + i)
   }
@@ -164,10 +164,10 @@ test('3c. move なしで遠くで pointerup', async ({ page }) => {
   await advanceBy(page, 2000)
   const l = await layout(page)
   const canvas = page.locator('#game')
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   let st = await state(page)
   const b = st.bombs[0]!
-  const wrongZone = zoneCenter(l, b.kind === 'round' ? 'square' : 'round')
+  const wrongZone = zoneCenter(l, b.kind === 'red' ? 'black' : 'red')
   console.log(
     `### bomb kind=${b.kind} at (${b.x.toFixed(1)},${b.y.toFixed(1)}) → 誤ゾーン ${JSON.stringify(wrongZone)} で move なし up`
   )
@@ -191,7 +191,7 @@ test('3d. pointerup を送らず次の pointerdown', async ({ page }) => {
   await advanceBy(page, 5000)
   const l = await layout(page)
   const canvas = page.locator('#game')
-  const fit = await fitOf(canvas, l.logicalH)
+  const fit = await fitOf(canvas, l)
   let st = await state(page)
   console.log(`### bombs=${st.bombs.length}`)
   // pointerId を変えつつ up を送らずに down を繰り返す

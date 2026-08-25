@@ -1,5 +1,5 @@
 import { BOMB, STORE } from '../core/constants'
-import type { StoredBomb, Zone } from '../core/types'
+import type { Rect, StoredBomb, Zone } from '../core/types'
 import { drawBody } from './draw-bomb'
 import { styleOf } from './palette'
 
@@ -31,47 +31,33 @@ export function drawZone(
   const r = zone.rect
   const hovered = hover === 'hover'
 
+  const D = BOMB.PIXEL
   ctx.save()
 
   // ---- 箱本体 ----
-  ctx.beginPath()
-  ctx.roundRect(r.x, r.y, r.w, r.h, 10)
+  // 角丸をやめて、ドット 1 個ぶんずつ削った段差の角にする。
+  // 曲線が 1 か所でも混じると、まわりのドットの目から浮いて見える
+  binPath(ctx, r, D)
   ctx.fillStyle = st.binFill
   ctx.fill()
 
   if (hovered) {
     // どこに入るかを常に見せる。グローは放射グラデーションで作る（shadowBlur は使わない）
-    const g = ctx.createRadialGradient(
-      r.x + r.w / 2,
-      r.y + r.h / 2,
-      6,
-      r.x + r.w / 2,
-      r.y + r.h / 2,
-      r.h * 0.7
-    )
-    g.addColorStop(0, st.binFill)
-    g.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = g
+    // グラデーションは目が滑らかになるので、内側にもう一枚重ねて明るくする
+    ctx.fillStyle = st.binFill
     ctx.fill()
   }
 
   // ---- 中身（仕分け済みのボム） ----
   ctx.save()
-  ctx.beginPath()
-  ctx.roundRect(r.x, r.y, r.w, r.h, 10)
+  binPath(ctx, r, D)
   ctx.clip()
   drawStored(ctx, zone, stored)
   ctx.restore()
 
   // ---- 枠 ----
-  ctx.lineWidth = hovered ? 4 : 2
-  ctx.strokeStyle = st.binEdge
-  ctx.setLineDash(hovered ? [12, 6] : [])
-  ctx.lineDashOffset = hovered ? -t * 18 : 0
-  ctx.beginPath()
-  ctx.roundRect(r.x, r.y, r.w, r.h, 10)
-  ctx.stroke()
-  ctx.setLineDash([])
+  // 線を引かず、ドットを縁に沿って並べる。ホバー中は流れる点線にする
+  drawPixelBorder(ctx, r, D, st.binEdge, hovered, t)
 
   ctx.restore()
 }
@@ -109,4 +95,56 @@ export function drawEmptyHint(ctx: CanvasRenderingContext2D, zone: Zone, t: numb
   drawBody(ctx, zone.kind, 0, BOMB.PIXEL * 0.9)
   ctx.restore()
   void st
+}
+
+/** 角をドット 1 個ぶんずつ削った矩形。曲線を使わない角丸 */
+function binPath(ctx: CanvasRenderingContext2D, r: Rect, d: number): void {
+  const c = d * 2
+  ctx.beginPath()
+  ctx.moveTo(r.x + c, r.y)
+  ctx.lineTo(r.x + r.w - c, r.y)
+  ctx.lineTo(r.x + r.w - d, r.y + d)
+  ctx.lineTo(r.x + r.w, r.y + c)
+  ctx.lineTo(r.x + r.w, r.y + r.h - c)
+  ctx.lineTo(r.x + r.w - d, r.y + r.h - d)
+  ctx.lineTo(r.x + r.w - c, r.y + r.h)
+  ctx.lineTo(r.x + c, r.y + r.h)
+  ctx.lineTo(r.x + d, r.y + r.h - d)
+  ctx.lineTo(r.x, r.y + r.h - c)
+  ctx.lineTo(r.x, r.y + c)
+  ctx.lineTo(r.x + d, r.y + d)
+  ctx.closePath()
+}
+
+/**
+ * 縁にドットを並べる。ホバー中は 1 つおきに点灯させて流す。
+ * 線幅で太らせるとドットの目が半端な位置に来るので、必ず d の倍数で置く。
+ */
+function drawPixelBorder(
+  ctx: CanvasRenderingContext2D,
+  r: Rect,
+  d: number,
+  color: string,
+  hovered: boolean,
+  t: number
+): void {
+  const thick = hovered ? d : d / 2
+  ctx.fillStyle = color
+  const march = Math.floor(t * 12)
+  const on = (i: number) => !hovered || (i + march) % 4 < 3
+
+  const cols = Math.ceil(r.w / d)
+  for (let i = 0; i < cols; i++) {
+    if (!on(i)) continue
+    const x = r.x + i * d
+    ctx.fillRect(x, r.y, d, thick)
+    ctx.fillRect(x, r.y + r.h - thick, d, thick)
+  }
+  const rows = Math.ceil(r.h / d)
+  for (let i = 0; i < rows; i++) {
+    if (!on(i + cols)) continue
+    const y = r.y + i * d
+    ctx.fillRect(r.x, y, thick, d)
+    ctx.fillRect(r.x + r.w - thick, y, thick, d)
+  }
 }

@@ -1,7 +1,8 @@
-import { FX } from '../core/constants'
+import { BOMB, FX } from '../core/constants'
 import { clamp } from '../core/math'
 import type { BombKind, Layout } from '../core/types'
 import { COLOR, styleOf } from './palette'
+import { drawPixelTextShadow, measurePixelText, pixelTextHeight } from './pixel-font'
 
 interface Particle {
   x: number
@@ -28,7 +29,10 @@ interface Pop {
   y: number
   life: number
   max: number
+  /** ドット字形で描く部分。数字と記号だけ */
   text: string
+  /** 添える言葉。システムフォントで描く。無くてもよい */
+  word?: string
   color: string
   size: number
 }
@@ -74,9 +78,19 @@ export function fxRing(fx: Fx, x: number, y: number, color: string): void {
   fx.rings.push({ x, y, life: 0.45, max: 0.45, color })
 }
 
-export function fxPop(fx: Fx, x: number, y: number, text: string, color: string, size = 16): void {
+export function fxPop(
+  fx: Fx,
+  x: number,
+  y: number,
+  text: string,
+  color: string,
+  size = 16,
+  word?: string
+): void {
   if (fx.pops.length >= FX.MAX_POPS) fx.pops.shift()
-  fx.pops.push({ x, y, life: 0.6, max: 0.6, text, color, size })
+  const pop: Pop = { x, y, life: 0.6, max: 0.6, text, color, size }
+  if (word !== undefined) pop.word = word
+  fx.pops.push(pop)
 }
 
 export function fxShake(fx: Fx, amount: number): void {
@@ -139,52 +153,61 @@ export function shakeOffset(fx: Fx): { x: number; y: number } {
 }
 
 export function drawFxBack(ctx: CanvasRenderingContext2D, fx: Fx, layout: Layout): void {
+  // 円ではなくドットを円周上に並べる。線を引くと目が滑らかになって浮く
+  const D = BOMB.PIXEL
   for (const r of fx.rings) {
     const k = 1 - r.life / r.max
-    const rad = 6 + k * 68
-    ctx.strokeStyle = r.color
-    ctx.globalAlpha = clamp(1 - k, 0, 1) * 0.8
-    ctx.lineWidth = 3 * (1 - k) + 0.6
-    ctx.beginPath()
-    ctx.arc(r.x, r.y, rad, 0, Math.PI * 2)
-    ctx.stroke()
+    const rad = 6 + k * 64
+    ctx.fillStyle = r.color
+    ctx.globalAlpha = clamp(1 - k, 0, 1) * 0.85
+    const count = Math.max(8, Math.round(rad / 3))
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2
+      const px = Math.round((r.x + Math.cos(a) * rad) / D) * D
+      const py = Math.round((r.y + Math.sin(a) * rad) / D) * D
+      ctx.fillRect(px, py, D, D)
+    }
   }
   ctx.globalAlpha = 1
   void layout
 }
 
 export function drawFxFront(ctx: CanvasRenderingContext2D, fx: Fx, layout: Layout): void {
+  // 破片は丸ではなく四角いドット。座標もドットの目に載せる
+  const D = BOMB.PIXEL
   for (const p of fx.particles) {
     const k = clamp(p.life / p.max, 0, 1)
     ctx.globalAlpha = k
     ctx.fillStyle = p.color
-    ctx.beginPath()
-    if (p.star) {
-      const s = p.size * (0.6 + k)
-      ctx.moveTo(p.x, p.y - s)
-      ctx.lineTo(p.x + s * 0.4, p.y)
-      ctx.lineTo(p.x, p.y + s)
-      ctx.lineTo(p.x - s * 0.4, p.y)
-      ctx.closePath()
-    } else {
-      ctx.arc(p.x, p.y, p.size * (0.6 + k), 0, Math.PI * 2)
-    }
-    ctx.fill()
+    const n = Math.max(1, Math.round(p.size * (0.4 + k) * 0.6))
+    const sz = n * D
+    ctx.fillRect(Math.round(p.x / D) * D - sz / 2, Math.round(p.y / D) * D - sz / 2, sz, sz)
   }
 
   for (const p of fx.pops) {
     const k = 1 - p.life / p.max
     ctx.globalAlpha = clamp(1 - k * k, 0, 1)
-    ctx.font = `700 ${p.size}px ui-monospace, SFMono-Regular, Menlo, monospace`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    // 赤いボムの上でもゾーンの上でも読めるように、暗い縁取りを先に置く
-    ctx.lineWidth = 3
-    ctx.lineJoin = 'round'
-    ctx.strokeStyle = 'rgba(13,15,20,0.9)'
-    ctx.strokeText(p.text, p.x, p.y - k * 34)
-    ctx.fillStyle = p.color
-    ctx.fillText(p.text, p.x, p.y - k * 34)
+    const dot = Math.max(2, Math.round(p.size / 6))
+    const y = p.y - k * 34 - pixelTextHeight(dot) / 2
+    if (p.word) {
+      // 言葉つきのポップは、数字だけドットで組んで言葉はシステムフォントに任せる
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      // 幅を測る前にフォントを決めること。順序を逆にすると、
+      // 直前に誰かが設定したフォントの幅で位置が決まってしまう
+      ctx.font = `700 ${p.size}px system-ui, -apple-system, "Hiragino Sans", sans-serif`
+      const wordW = ctx.measureText(p.word).width
+      drawPixelTextShadow(ctx, p.text, p.x - wordW / 2 - 3, y, dot, p.color, 'center')
+      ctx.fillStyle = p.color
+      ctx.font = `700 ${p.size}px system-ui, -apple-system, "Hiragino Sans", sans-serif`
+      ctx.fillText(
+        p.word,
+        p.x + measurePixelText(p.text, dot) / 2 + 3,
+        y + pixelTextHeight(dot) / 2
+      )
+    } else {
+      drawPixelTextShadow(ctx, p.text, p.x, y, dot, p.color, 'center')
+    }
   }
 
   ctx.globalAlpha = 1

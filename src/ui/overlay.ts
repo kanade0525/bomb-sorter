@@ -1,5 +1,40 @@
 import type { Command, World } from '../core/types'
+import { drawPixelText, measurePixelText, pixelTextHeight } from '../view/pixel-font'
 import { createIcon, type IconName } from './icons'
+
+/**
+ * 数字をドット字形で描いた小さな canvas を返す。
+ *
+ * 画面でいちばん大きく出る数字がシステムフォントのままだと、
+ * まわりのピクセルの目から浮いてしまう。DOM の中でもドットで組む。
+ */
+function pixelNumber(
+  dot: number,
+  color: string
+): {
+  el: HTMLCanvasElement
+  set: (text: string) => void
+} {
+  const el = document.createElement('canvas')
+  el.className = 'pixel-number'
+  el.setAttribute('aria-hidden', 'true')
+  const set = (text: string) => {
+    const w = Math.max(1, measurePixelText(text, dot))
+    const h = pixelTextHeight(dot)
+    // 実解像度で描いて、CSS では等倍で見せる。拡大されるとドットが甘くなる
+    const ratio = Math.min(window.devicePixelRatio || 1, 2)
+    el.width = Math.round(w * ratio)
+    el.height = Math.round(h * ratio)
+    el.style.width = `${w}px`
+    el.style.height = `${h}px`
+    const ctx = el.getContext('2d')
+    if (!ctx) return
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
+    ctx.clearRect(0, 0, w, h)
+    drawPixelText(ctx, text, 0, 0, dot, color)
+  }
+  return { el, set }
+}
 
 /**
  * タイトル・ポーズ・ゲームオーバー・縦持ちの案内。
@@ -89,8 +124,10 @@ export function createOverlay(root: HTMLElement): Overlay {
   over.appendChild(el('h2', undefined, 'ゲームオーバー'))
   const reason = el('p', 'reason', '')
   over.appendChild(reason)
-  const scoreBig = el('p', 'score-big', '0')
-  over.appendChild(scoreBig)
+  const scoreBig = pixelNumber(9, '#e8ecf4')
+  const scoreWrap = el('p', 'score-big')
+  scoreWrap.appendChild(scoreBig.el)
+  over.appendChild(scoreWrap)
   const stats = el('p', 'stats', '')
   over.appendChild(stats)
   const retryBtn = button('もう一度', 'primary', 'refresh')
@@ -143,7 +180,10 @@ export function createOverlay(root: HTMLElement): Overlay {
 
       if (phase === 'gameover') {
         reason.textContent = DEATH_TEXT[world.deathReason ?? ''] ?? ''
-        scoreBig.textContent = String(world.score)
+        scoreBig.set(String(world.score))
+        // 読み上げ用に、数字そのものは文字としても持たせておく
+        scoreWrap.setAttribute('aria-label', `得点 ${world.score}`)
+        scoreWrap.setAttribute('role', 'text')
         const isNew = world.score > 0 && world.score >= best
         stats.textContent = isNew
           ? `新記録！ ボムすけ ${world.sorted} 体 仕分け / 最高 ${world.bestCombo} 連鎖`

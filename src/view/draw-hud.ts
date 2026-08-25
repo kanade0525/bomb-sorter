@@ -1,11 +1,16 @@
-import { FIELD, FUSE, SCORE } from '../core/constants'
+import { BOMB, FIELD, FUSE, SCORE } from '../core/constants'
 import { clamp } from '../core/math'
 import type { Layout, World } from '../core/types'
 import { comboMultiplier } from '../game/score'
 import { COLOR } from './palette'
+import { drawPixelText, measurePixelText, pixelTextHeight } from './pixel-font'
 
 /**
- * スコア・記録・連鎖と、連鎖の残り時間ゲージ。
+ * 得点・記録・連鎖と、連鎖の残り時間ゲージ。
+ *
+ * 数字はドットで組んだ字形で描く（pixel-font.ts）。一番目に入るものなので、
+ * ここがシステムフォントのままだと画面全体のピクセルの目から浮いてしまう。
+ * 言葉のラベルだけはシステムフォントのまま — 漢字を 5x7 で組むと読めなくなる。
  *
  * 左に得点、右に連鎖を置き、それぞれ左揃え・右揃えにする。
  * 一度スコアが 5 桁になったところで中央寄せの連鎖表示と重なったので、
@@ -20,21 +25,20 @@ export function drawHud(
 ): void {
   const h = layout.hud
   const right = h.x + h.w - FIELD.HUD_RESERVED_RIGHT
+  const label = '600 11px system-ui, -apple-system, "Hiragino Sans", sans-serif'
   ctx.save()
   ctx.textBaseline = 'alphabetic'
 
   // ---- 得点 ----
   ctx.fillStyle = COLOR.textDim
-  ctx.font = '600 11px system-ui, -apple-system, "Hiragino Sans", sans-serif'
+  ctx.font = label
   ctx.textAlign = 'left'
   ctx.fillText('得点', h.x, h.y + 12)
 
   const scoreText = String(w.score)
-  // 桁が伸びても右側にぶつからないよう、長くなったら小さくする
-  const scoreSize = scoreText.length > 7 ? 20 : scoreText.length > 5 ? 24 : 28
-  ctx.fillStyle = COLOR.text
-  ctx.font = `700 ${scoreSize}px ui-monospace, SFMono-Regular, Menlo, monospace`
-  ctx.fillText(scoreText, h.x, h.y + 36)
+  // 桁が伸びても右側にぶつからないよう、長くなったらドットを小さくする
+  const scoreDot = scoreText.length > 7 ? 2 : scoreText.length > 5 ? 3 : 4
+  drawPixelText(ctx, scoreText, h.x, h.y + 16, scoreDot, COLOR.text)
 
   // ---- 記録と、いちばん危ないボムの残り秒 ----
   // 死ぬ主因は導火線切れなので、見逃すと死ぬ情報を、
@@ -50,43 +54,62 @@ export function drawHud(
     }
   }
 
-  const infoX = h.x + 92
-  ctx.font = '700 13px system-ui, -apple-system, "Hiragino Sans", sans-serif'
+  const infoX = h.x + measurePixelText('0000000', scoreDot) + 14
+  const infoY = h.y + 16
   ctx.textAlign = 'left'
   if (minRatio < FUSE.WARN_RATIO && Number.isFinite(minLeft)) {
-    ctx.fillStyle = minRatio < FUSE.CRITICAL_RATIO ? COLOR.danger : COLOR.accent
-    ctx.fillText(`残り ${minLeft.toFixed(1)} 秒`, infoX, h.y + 36)
+    const color = minRatio < FUSE.CRITICAL_RATIO ? COLOR.danger : COLOR.accent
+    ctx.fillStyle = color
+    ctx.font = '700 12px system-ui, -apple-system, "Hiragino Sans", sans-serif'
+    ctx.fillText('残り', infoX, infoY + 2)
+    drawPixelText(ctx, minLeft.toFixed(1), infoX + 30, infoY, 3, color)
+    ctx.fillStyle = color
+    ctx.fillText('秒', infoX + 30 + measurePixelText('0.0', 3) + 4, infoY + 2)
   } else if (best > w.score) {
-    ctx.font = '600 12px system-ui, -apple-system, "Hiragino Sans", sans-serif'
     ctx.fillStyle = COLOR.textDim
-    ctx.fillText(`最高 ${best}`, infoX, h.y + 36)
+    ctx.font = label
+    ctx.fillText('最高', infoX, infoY + 2)
+    drawPixelText(ctx, String(best), infoX + 26, infoY, 2, COLOR.textDim)
   } else if (best > 0) {
     ctx.fillStyle = COLOR.accent
-    ctx.fillText('新記録', infoX, h.y + 36)
+    ctx.font = '700 12px system-ui, -apple-system, "Hiragino Sans", sans-serif'
+    ctx.fillText('新記録', infoX, infoY + 2)
   }
 
   // ---- 連鎖 ----
   if (w.combo > 0) {
     const mult = comboMultiplier(w.combo)
+    const multText = `x${mult.toFixed(1)}`
+    const comboText = String(w.combo)
+    const dot = 3
+
+    // 右から「x5.0」「連鎖」「12」の順に積む
+    const multW = measurePixelText(multText, dot)
+    drawPixelText(ctx, multText, right, h.y + 8, dot, COLOR.accent, 'right')
+
     ctx.textAlign = 'right'
     ctx.fillStyle = COLOR.accent
-    ctx.font = '700 15px system-ui, -apple-system, "Hiragino Sans", sans-serif'
-    ctx.fillText(`${w.combo} 連鎖  x${mult.toFixed(1)}`, right, h.y + 22)
+    ctx.font = '700 13px system-ui, -apple-system, "Hiragino Sans", sans-serif'
+    const wordRight = right - multW - 8
+    ctx.fillText('連鎖', wordRight, h.y + 8 + pixelTextHeight(dot) - 3)
+    drawPixelText(ctx, comboText, wordRight - 30, h.y + 8, dot, COLOR.accent, 'right')
 
-    // 連鎖が切れるまでの残り。急いで捌く動機を可視化する
-    const gw = 104
+    // 連鎖が切れるまでの残り。滑らかなバーではなくドットの目盛りで見せる
+    const cells = 12
+    const cell = 6
+    const gap = 2
+    const gw = cells * cell + (cells - 1) * gap
     const gx = right - gw
-    const gy = h.y + 30
+    const gy = h.y + 8 + pixelTextHeight(dot) + 6
     const ratio = clamp(w.comboTimer / SCORE.COMBO_WINDOW, 0, 1)
-    ctx.fillStyle = 'rgba(255,255,255,0.14)'
-    ctx.beginPath()
-    ctx.roundRect(gx, gy, gw, 4, 2)
-    ctx.fill()
-    ctx.fillStyle = ratio < 0.3 ? COLOR.danger : COLOR.accent
-    ctx.beginPath()
-    ctx.roundRect(gx, gy, gw * ratio, 4, 2)
-    ctx.fill()
+    const lit = Math.ceil(ratio * cells)
+    for (let i = 0; i < cells; i++) {
+      ctx.fillStyle =
+        i < lit ? (ratio < 0.3 ? COLOR.danger : COLOR.accent) : 'rgba(255,255,255,0.13)'
+      ctx.fillRect(gx + i * (cell + gap), gy, cell, 4)
+    }
   }
 
   ctx.restore()
+  void BOMB
 }

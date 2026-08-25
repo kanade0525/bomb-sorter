@@ -23,9 +23,11 @@ const HAZARD = {
   yellow: '#e8b427',
   dark: '#181a20',
   /** 縞の幅（論理px） */
-  BAND: 11,
+  BAND: 12,
   /** 帯の厚み（論理px） */
-  THICK: 9,
+  THICK: 12,
+  /** ドット 1 個の大きさ。ボムのドットに揃える */
+  DOT: 4,
 } as const
 
 export interface FloorCache {
@@ -95,17 +97,25 @@ function paintFloor(ctx: CanvasRenderingContext2D, layout: Layout): void {
   }
 
   // ---- 境界のトラロープ ----
-  // フィールドと箱の間、つまり「ここから先は仕分け場」という線を床に引く
+  // フィールドと箱の間、つまり「ここから先は仕分け場」という線を床に引く。
+  // フィールドの外側に貼ると上端が HUD と重なるので、内側の縁に貼る。
+  // 床に貼ったテープなので、ボムすけがその上を歩いても不自然ではない。
   const t = HAZARD.THICK
-  hazardBand(ctx, { x: field.x - t, y: field.y, w: t, h: field.h }, 'v')
-  hazardBand(ctx, { x: field.x + field.w, y: field.y, w: t, h: field.h }, 'v')
-  hazardBand(ctx, { x: field.x - t, y: field.y - t, w: field.w + t * 2, h: t }, 'h')
-  hazardBand(ctx, { x: field.x - t, y: field.y + field.h, w: field.w + t * 2, h: t }, 'h')
+  hazardBand(ctx, { x: field.x, y: field.y, w: t, h: field.h }, 'v')
+  hazardBand(ctx, { x: field.x + field.w - t, y: field.y, w: t, h: field.h }, 'v')
+  hazardBand(ctx, { x: field.x, y: field.y, w: field.w, h: t }, 'h')
+  hazardBand(ctx, { x: field.x, y: field.y + field.h - t, w: field.w, h: t }, 'h')
 }
 
-/** 黄と黒の斜め縞。工事現場の「トラロープ」の見た目 */
+/**
+ * 黄と黒の斜め縞。工事現場の「トラロープ」の見た目。
+ *
+ * 斜めの多角形で塗ると縁が滑らかになって、まわりのドットの目から浮く。
+ * ドットを 1 個ずつ置いて、階段状の斜めにする。
+ */
 function hazardBand(ctx: CanvasRenderingContext2D, rect: Rect, axis: 'h' | 'v'): void {
   if (rect.w <= 0 || rect.h <= 0) return
+  const d = HAZARD.DOT
   ctx.save()
   ctx.beginPath()
   ctx.rect(rect.x, rect.y, rect.w, rect.h)
@@ -115,29 +125,25 @@ function hazardBand(ctx: CanvasRenderingContext2D, rect: Rect, axis: 'h' | 'v'):
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
 
   ctx.fillStyle = HAZARD.yellow
-  const band = HAZARD.BAND
-  const span = rect.w + rect.h
-  // 45 度の平行四辺形を並べる。縦帯と横帯で縞の向きを揃える
-  for (let i = -rect.h; i < span; i += band * 2) {
-    ctx.beginPath()
-    if (axis === 'v') {
-      ctx.moveTo(rect.x + i, rect.y)
-      ctx.lineTo(rect.x + i + band, rect.y)
-      ctx.lineTo(rect.x + i + band - rect.h, rect.y + rect.h)
-      ctx.lineTo(rect.x + i - rect.h, rect.y + rect.h)
-    } else {
-      ctx.moveTo(rect.x + i, rect.y)
-      ctx.lineTo(rect.x + i + band, rect.y)
-      ctx.lineTo(rect.x + i + band - rect.h, rect.y + rect.h)
-      ctx.lineTo(rect.x + i - rect.h, rect.y + rect.h)
+  const period = HAZARD.BAND * 2
+  const cols = Math.ceil(rect.w / d)
+  const rows = Math.ceil(rect.h / d)
+  for (let ry = 0; ry < rows; ry++) {
+    for (let rx = 0; rx < cols; rx++) {
+      // x + y を周期で折り返すと 45 度の縞になる
+      const v = (((rx * d + ry * d) % period) + period) % period
+      if (v < HAZARD.BAND) {
+        ctx.fillRect(rect.x + rx * d, rect.y + ry * d, d, d)
+      }
     }
-    ctx.closePath()
-    ctx.fill()
   }
 
-  // 帯の縁に暗い線を入れて、床に貼ったテープらしくする
-  ctx.strokeStyle = 'rgba(0,0,0,0.55)'
-  ctx.lineWidth = 1
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1)
+  // 帯の縁に暗いドットを置いて、床に貼ったテープらしくする
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'
+  ctx.fillRect(rect.x, rect.y, rect.w, d / 2)
+  ctx.fillRect(rect.x, rect.y + rect.h - d / 2, rect.w, d / 2)
+  ctx.fillRect(rect.x, rect.y, d / 2, rect.h)
+  ctx.fillRect(rect.x + rect.w - d / 2, rect.y, d / 2, rect.h)
   ctx.restore()
+  void axis
 }

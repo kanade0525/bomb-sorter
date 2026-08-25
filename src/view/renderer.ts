@@ -6,6 +6,7 @@ import { drawFxBack, drawFxFront, shakeOffset, type Fx } from './draw-fx'
 import { drawHud } from './draw-hud'
 import { drawEmptyHint, drawZone, type ZoneHover } from './draw-zone'
 import { COLOR } from './palette'
+import { drawPixelTextShadow, pixelTextHeight } from './pixel-font'
 import { applyTransform, type Viewport } from './viewport'
 import type { FloorCache } from './draw-floor'
 
@@ -94,12 +95,19 @@ function drawReady(ctx: CanvasRenderingContext2D, phaseTime: number, w: number, 
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.globalAlpha = 0.4 + 0.6 * (1 - frac)
-  ctx.fillStyle = COLOR.text
-  ctx.font = '700 76px ui-monospace, SFMono-Regular, Menlo, monospace'
-  ctx.fillText(String(Math.max(1, n)), w / 2, h / 2 - 12)
+  const dot = 10
+  drawPixelTextShadow(
+    ctx,
+    String(Math.max(1, n)),
+    w / 2,
+    h / 2 - pixelTextHeight(dot) / 2 - 12,
+    dot,
+    COLOR.text,
+    'center'
+  )
   ctx.globalAlpha = 1
   ctx.fillStyle = COLOR.textDim
   ctx.font = '600 14px system-ui, -apple-system, "Hiragino Sans", sans-serif'
-  ctx.fillText('ボムすけを同じ色の箱へ', w / 2, h / 2 + 42)
+  ctx.fillText('ボムすけを同じ色の箱へ', w / 2, h / 2 + 48)
   ctx.restore()
 }

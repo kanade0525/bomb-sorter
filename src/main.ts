@@ -135,7 +135,7 @@ function drainEffects(): void {
         // 落とした点は指の真下なので、文字は上へ逃がす。
         // 色を形依存にすると square の暗い色で読めなくなるので固定色にする
         fxPop(fx, e.x, e.y - 58, `+${e.gain}`, COLOR.text)
-        if (e.combo >= 3) fxPop(fx, e.x, e.y - 84, `${e.combo} 連鎖`, COLOR.accent, 13)
+        if (e.combo >= 3) fxPop(fx, e.x, e.y - 86, String(e.combo), COLOR.accent, 13, '連鎖')
         break
       }
       case 'miss':

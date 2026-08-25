@@ -7,7 +7,7 @@
 <p>
   <img src="docs/screenshot-title.png" alt="タイトル画面" width="240">
   <img src="docs/screenshot-play.png" alt="正しいばしょの上に持っていったとき" width="240">
-  <img src="docs/screenshot-reject.png" alt="ちがうばしょの上に持っていったとき" width="240">
+  <img src="docs/screenshot-reject.png" alt="ゲームオーバー画面" width="240">
 </p>
 
 ## 遊び方
@@ -36,8 +36,11 @@
 
 素材を一切同梱していないのも意図的です。
 
-- **絵**: Canvas 2D に手続き的に描いています。画像ファイルは 1 枚もありません
+- **絵**: Canvas 2D に 1 ドットずつ手続き的に描いています。画像ファイルは 1 枚もありません
   （PWA のアイコンも `npm run icons` がコードから描き出したものです）
+- **数字**: ウェブフォントを読み込めないので、得点や連鎖数の字形は 5x7 のドットで
+  [コードに持っています](src/view/pixel-font.ts)。日本語のラベルだけはシステムフォントです
+  （漢字を 5x7 で組むと読めなくなるため）
 - **音**: 効果音も BGM も Web Audio API でその場で合成しています。音源ファイルは 1 つもありません
 - **文字**: OS 標準のフォント（`system-ui`）だけを使い、ウェブフォントを読み込みません
 - **アイコン**: Material Symbols のパスデータを SVG としてインラインで埋め込んでいます（詳細は [NOTICE.md](NOTICE.md)）

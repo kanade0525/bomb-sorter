@@ -61,9 +61,9 @@ export function render(ctx: CanvasRenderingContext2D, input: RenderInput): void 
 
   for (const z of layout.zones) {
     const stored = world.stored[z.kind]
-    drawZone(ctx, z, stored, hover.get(z.kind) ?? 'none', t)
+    drawZone(ctx, z, stored, hover.get(z.kind) ?? 'none', t, flags.device)
     // 中身が空のうちは、どちらの箱かを示すものが何もないので見本を薄く置く
-    if (stored.length === 0) drawEmptyHint(ctx, z, t)
+    if (stored.length === 0) drawEmptyHint(ctx, z, t, flags.device)
   }
 
   drawFxBack(ctx, fx, layout)
@@ -71,7 +71,7 @@ export function render(ctx: CanvasRenderingContext2D, input: RenderInput): void 
   // タイトルでは飾りなので、導火線ゲージを出さず薄く描いて文字の邪魔をしない
   const isTitle = world.phase === 'title'
   const bombFlags: DrawFlags = isTitle
-    ? { reducedMotion: flags.reducedMotion, showFuse: false }
+    ? { reducedMotion: flags.reducedMotion, device: flags.device, showFuse: false }
     : flags
   if (isTitle) ctx.globalAlpha = 0.5
   for (const b of world.bombs) drawBomb(ctx, b, bombFlags)

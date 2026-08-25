@@ -25,7 +25,8 @@ export function drawZone(
   zone: Zone,
   stored: readonly StoredBomb[],
   hover: ZoneHover,
-  t: number
+  t: number,
+  device: number
 ): void {
   const st = styleOf(zone.kind)
   const r = zone.rect
@@ -52,7 +53,7 @@ export function drawZone(
   ctx.save()
   binPath(ctx, r, D)
   ctx.clip()
-  drawStored(ctx, zone, stored)
+  drawStored(ctx, zone, stored, device)
   ctx.restore()
 
   // ---- 枠 ----
@@ -66,7 +67,8 @@ export function drawZone(
 function drawStored(
   ctx: CanvasRenderingContext2D,
   zone: Zone,
-  stored: readonly StoredBomb[]
+  stored: readonly StoredBomb[],
+  device: number
 ): void {
   const inner = zone.inner
   const p = BOMB.PIXEL * STORE.SCALE
@@ -79,20 +81,25 @@ function drawStored(
     ctx.save()
     ctx.translate(x, y)
     ctx.scale(s.facing, 1)
-    drawBody(ctx, s.kind, s.step, p, false, 0.95)
+    drawBody(ctx, s.kind, s.step, p, device, 0.95)
     ctx.restore()
   }
 }
 
 /** 空の箱に出す控えめな案内。中身がまだ無いときだけ */
-export function drawEmptyHint(ctx: CanvasRenderingContext2D, zone: Zone, t: number): void {
+export function drawEmptyHint(
+  ctx: CanvasRenderingContext2D,
+  zone: Zone,
+  t: number,
+  device: number
+): void {
   const st = styleOf(zone.kind)
   const cx = zone.rect.x + zone.rect.w / 2
   const cy = zone.rect.y + zone.rect.h / 2
   ctx.save()
   ctx.globalAlpha = 0.32 + 0.08 * Math.sin(t * 2)
   ctx.translate(cx, cy)
-  drawBody(ctx, zone.kind, 0, BOMB.PIXEL * 0.9)
+  drawBody(ctx, zone.kind, 0, BOMB.PIXEL * 0.9, device)
   ctx.restore()
   void st
 }

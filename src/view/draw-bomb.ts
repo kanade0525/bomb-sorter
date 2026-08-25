@@ -1,10 +1,13 @@
 import { BOMB, FUSE } from '../core/constants'
 import { clamp } from '../core/math'
 import type { Bomb, BombKind } from '../core/types'
-import { COLOR, styleOf } from './palette'
+import { getBombSprite, legFrameOf, lookFrameOf } from './bomb-sprite'
+import { COLOR } from './palette'
 
 export interface DrawFlags {
   reducedMotion: boolean
+  /** 論理 1px が実ピクセル何個か。焼いた姿をドットの目を保って貼るのに要る */
+  device: number
   /** タイトルの飾りのボムは導火線が止まっているので、ゲージを出すと嘘になる */
   showFuse?: boolean
 }
@@ -20,31 +23,14 @@ export interface DrawFlags {
  * 座標はドット単位に丸めてから矩形で置いていく。shadowBlur は使わない。
  */
 
-/** 本体の半径（ドット数）。PIXEL 倍したものが論理サイズになる */
-const BODY_R = 6
-/** 足の付け根から下の高さ（ドット） */
-const LEG_H = 4
-
 type Ctx = CanvasRenderingContext2D
 
+/** 本体の半径（ドット数）。導火線と残量ゲージの位置決めに使う */
+const BODY_R = 6
+
+/** ドット 1 個を置く。座標はドット単位で、p が 1 ドットの大きさ */
 function dot(ctx: Ctx, px: number, py: number, p: number, w = 1, h = 1): void {
   ctx.fillRect(px * p, py * p, w * p, h * p)
-}
-
-/** 本体の 1 ドットが、輪郭・ハイライト・影・地色のどれかを返す */
-function bodyShade(dx: number, dy: number): 'edge' | 'light' | 'shade' | 'body' | null {
-  const d2 = dx * dx + dy * dy
-  const r2 = BODY_R * BODY_R
-  if (d2 > r2) return null
-  // 外周 1 ドットを輪郭にする
-  const outside = (ax: number, ay: number) => ax * ax + ay * ay > r2
-  if (outside(dx + 1, dy) || outside(dx - 1, dy) || outside(dx, dy + 1) || outside(dx, dy - 1)) {
-    return 'edge'
-  }
-  // 左上に小さな光沢、右下に影
-  if (dx <= -1 && dy <= -2 && dx >= -3) return 'light'
-  if (dx + dy > 4) return 'shade'
-  return 'body'
 }
 
 export function drawBomb(ctx: Ctx, b: Bomb, flags: DrawFlags): void {
@@ -65,7 +51,7 @@ export function drawBomb(ctx: Ctx, b: Bomb, flags: DrawFlags): void {
   ctx.scale(scale * b.facing, scale)
   if (b.vanish > 0) ctx.globalAlpha = clamp(1 - b.vanish, 0, 1)
 
-  drawBody(ctx, b.kind, b.step, BOMB.PIXEL, held)
+  drawBody(ctx, b.kind, b.step, BOMB.PIXEL, flags.device)
   drawFuse(ctx, ratio, b.step, BOMB.PIXEL, flags)
 
   ctx.restore()
@@ -86,65 +72,30 @@ export function drawBomb(ctx: Ctx, b: Bomb, flags: DrawFlags): void {
   }
 }
 
-/** 本体と足。よちよち歩きは、左右の足を交互に上下させて作る */
+/**
+ * 本体と足。焼いてある姿を貼るだけ。
+ *
+ * 以前はここで 1 ドットずつ塗っていたが、箱が埋まると中身が 88 体になり、
+ * 毎フレーム 1 万回を超える塗りになって、遅い端末で 16 fps まで落ちた。
+ * 姿の種類は「色 × 足の位相 × 目線」しかないので、焼いておいて貼る。
+ *
+ * device は「論理 1px が実ピクセル何個か」。ドットの目を保つために必要で、
+ * 呼び出し側（renderer）が現在のビューポートから渡す。
+ */
 export function drawBody(
   ctx: Ctx,
   kind: BombKind,
   step: number,
   p: number,
-  held = false,
+  device: number,
   alpha = 1
 ): void {
-  const st = styleOf(kind)
-  ctx.globalAlpha = ctx.globalAlpha * alpha
-
-  // ---- 足（本体の後ろに描く） ----
-  // 掴まれている間は宙に浮いているので、足をばたつかせる
-  const swing = Math.sin(step)
-  const lift = held ? 1.6 : 1
-  const legL = Math.round(swing * lift)
-  const legR = Math.round(-swing * lift)
-
-  // 足は本体と別の色にする。本体と同系色にすると、ひとつながりの尻尾に見えてしまう
-  for (const [lx, off] of [
-    [-3, legL],
-    [1, legR],
-  ] as const) {
-    ctx.fillStyle = COLOR.leg
-    dot(ctx, lx, BODY_R - 1 + off, p, 2, LEG_H)
-    // 足の先。進む向きへ少し出す
-    ctx.fillStyle = COLOR.legFoot
-    dot(ctx, lx, BODY_R - 1 + off + LEG_H - 1, p, 3, 1)
-  }
-
-  // ---- 本体 ----
-  for (let dy = -BODY_R; dy <= BODY_R; dy++) {
-    for (let dx = -BODY_R; dx <= BODY_R; dx++) {
-      const kindOf = bodyShade(dx, dy)
-      if (!kindOf) continue
-      ctx.fillStyle =
-        kindOf === 'edge'
-          ? st.edge
-          : kindOf === 'light'
-            ? st.light
-            : kindOf === 'shade'
-              ? st.shade
-              : st.body
-      dot(ctx, dx, dy, p)
-    }
-  }
-
-  // ---- 目 ----
-  // 白目 2 ドットに黒目 1 ドット。ここも 2 種類で完全に同じ
-  ctx.fillStyle = '#f4f6fa'
-  dot(ctx, -3, -2, p, 2, 2)
-  dot(ctx, 1, -2, p, 2, 2)
-  ctx.fillStyle = '#14161c'
-  const look = Math.round(Math.sin(step * 0.5) * 0.5)
-  dot(ctx, -2 + look, -1, p)
-  dot(ctx, 2 + look, -1, p)
-
-  ctx.globalAlpha = ctx.globalAlpha / alpha
+  const sprite = getBombSprite(kind, legFrameOf(step), lookFrameOf(step), p, device)
+  if (!sprite) return
+  const prev = ctx.globalAlpha
+  if (alpha !== 1) ctx.globalAlpha = prev * alpha
+  ctx.drawImage(sprite.canvas, sprite.ox, sprite.oy, sprite.w, sprite.h)
+  ctx.globalAlpha = prev
 }
 
 /** 導火線。残り時間に応じて物理的に短くなる */

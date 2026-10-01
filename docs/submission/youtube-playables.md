@@ -3,21 +3,21 @@
 Prepared for the **Public Playables Interest Form**.
 All figures below are measured from the live production build, not estimated.
 
-|                              |                                                          |
-| ---------------------------- | -------------------------------------------------------- |
-| **Title**                    | Bomb Sorter                                              |
-| **Play now**                 | https://kanade0525.github.io/bomb-sorter/                |
-| **Source**                   | https://github.com/kanade0525/bomb-sorter (public, MIT)  |
-| **Status**                   | Fully developed and playable. Not a concept.             |
-| **Genre**                    | Arcade / sorting / reaction                              |
-| **Session length**           | 30 seconds to a few minutes per run                      |
-| **Engine**                   | None. Hand-written TypeScript on Canvas 2D               |
-| **Initial download**         | **68.8 KB**                                              |
-| **Total bundle**             | **504 KB** across **17 files**                           |
-| **Time to interactive**      | **93–174 ms** (measured over public HTTPS)               |
-| **Peak JS heap**             | **9.5 MB**                                               |
-| **Network calls after load** | **Zero.** Enforced by CSP `connect-src 'none'`           |
-| **Languages**                | Japanese (UI). Interface is 95% numeric and iconographic |
+|                              |                                                                     |
+| ---------------------------- | ------------------------------------------------------------------- |
+| **Title**                    | Bomb Sorter                                                         |
+| **Play now**                 | https://kanade0525.github.io/bomb-sorter/                           |
+| **Source**                   | https://github.com/kanade0525/bomb-sorter (public, MIT)             |
+| **Status**                   | Fully developed and playable. Not a concept.                        |
+| **Genre**                    | Arcade / sorting / reaction                                         |
+| **Session length**           | 30 seconds to a few minutes per run                                 |
+| **Engine**                   | None. Hand-written TypeScript on Canvas 2D                          |
+| **Initial download**         | **73.2 KiB**                                                        |
+| **Total bundle**             | **537.7 KiB** across **18 files** (147.0 KiB excluding source maps) |
+| **Time to interactive**      | **93–174 ms** (measured over public HTTPS)                          |
+| **Peak JS heap**             | **9.5 MB**                                                          |
+| **Network calls after load** | **Zero.** Enforced by CSP `connect-src 'none'`                      |
+| **Languages**                | Japanese (UI). Interface is 95% numeric and iconographic            |
 
 ---
 
@@ -85,12 +85,25 @@ ends demanding nearly two a second. One mistake ends the run.
 
 ### Bundle
 
+Standalone build (`npm run build` → `dist/`), as served from GitHub Pages:
+
 ```
-Initial download          68.8 KB   (index.html + JS + CSS + manifest + icon)
-Total bundle             504.0 KB   across 17 files
-Largest single file      204.0 KB   (a JavaScript source map; 52 KB for the JS itself)
-Largest non-map file      52.0 KB
+Initial download          73.2 KiB  (index.html + JS + CSS + manifest + favicon)
+Total bundle             537.7 KiB  across 18 files
+  excluding source maps  147.0 KiB  across 14 files (maps are only fetched with devtools open)
+Largest single file      229.1 KiB  (a JavaScript source map)
+Largest non-map file      56.0 KiB  (the game itself)
 ```
+
+Playables build (`npm run build:playables` → `dist-playables/`), which is what would ship:
+
+```
+Total bundle              62.1 KiB  across 3 files
+Largest single file       53.8 KiB  (the game itself)
+```
+
+Figures are printed by `npm run check:playables`; re-run it after any build change rather than
+trusting the numbers above.
 
 ### Measured performance
 
@@ -203,7 +216,7 @@ npm run check:playables   # builds, then checks the output against the requireme
 | No Service Worker in the Playables bundle              | **Done.** The PWA plugin is dropped from that build; the platform owns delivery and updates                                                   |
 | CSP                                                    | The standalone build keeps `connect-src 'none'`. The Playables build allows exactly one origin, `https://www.youtube.com`, for the SDK        |
 
-The Playables bundle is **84 KiB across 9 files**, with the largest single file at 53 KiB.
+The Playables bundle is **62.1 KiB across 3 files**, with the largest single file at 53.8 KiB.
 
 Because the real SDK only exists inside YouTube, the integration is verified against a
 stand-in that has the same shape: seven end-to-end checks confirm the lifecycle calls fire

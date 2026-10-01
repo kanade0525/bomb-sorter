@@ -6,3 +6,5 @@ test-results/
 shots/
 public/icons/
 package-lock.json
+# 各自のローカル設定。書式を揃える対象ではないし、揃えても勝手に書き戻される
+.claude/

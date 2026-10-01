@@ -33,7 +33,12 @@ async function walk(dir, out = []) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     const p = join(dir, e.name)
     if (e.isDirectory()) {
-      if (['node_modules', 'dist', 'dev-dist', 'coverage', '.git'].includes(e.name)) continue
+      // dist / dist-playables / dist-itch … 出し先が増えるたびに書き足さずに済むよう前方一致で外す
+      if (
+        e.name.startsWith('dist') ||
+        ['node_modules', 'dev-dist', 'coverage', '.git'].includes(e.name)
+      )
+        continue
       await walk(p, out)
     } else {
       out.push(p)

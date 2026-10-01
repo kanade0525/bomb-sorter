@@ -9,15 +9,29 @@ import { VitePWA } from 'vite-plugin-pwa'
 const BASE = '/bomb-sorter/'
 
 /**
- * YouTube ゲームルーム（Playables）向けのビルドかどうか。
- * `PLAYABLES=1 npm run build:playables` で切り替わる。
+ * どの場へ向けたビルドか。環境変数で切り替える。
  *
- * 違いは 3 つ。
- *  1. 絶対パスが禁じられている（MUST）ので base を相対にする
- *  2. SDK をゲームコードより前に読み込む必要がある
- *  3. Service Worker は要らない。配信も更新も向こうが持っている
+ *  - 何も無し    … GitHub Pages で自前配信する素のウェブ（PWA つき）
+ *  - PLAYABLES=1 … YouTube ゲームルーム（`npm run build:playables`）
+ *  - ITCH=1      … itch.io へ zip で上げる単体配布（`npm run build:itch`）
  */
 const PLAYABLES = process.env['PLAYABLES'] === '1'
+const ITCH = process.env['ITCH'] === '1'
+
+/**
+ * 「zip ひとつを向こうの配信基盤に置く」形のビルド。ゲームルームと itch.io が該当する。
+ *
+ * 配信元が自分の持ち物でないという一点から、同じ 3 つの違いが出る。
+ *  1. 置かれるパスをこちらで決められないので base を相対にする
+ *     （ゲームルームでは絶対パスが禁じられてもいる。MUST）
+ *  2. Service Worker は要らない。配信も更新も向こうが持っている
+ *     （itch.io は iframe の中で動くので、登録してもスコープが噛み合わない）
+ *  3. アイコン・manifest・リンクのプレビュー画像は向こうの流儀で持つので同梱しない
+ *
+ * ゲームルーム固有なのは SDK の読み込みだけ。ここを分けておかないと、
+ * 出し先が増えるたびに同じ分岐を書き足すことになる。
+ */
+const STANDALONE = PLAYABLES || ITCH
 
 /** SDK の読み込み元。ゲームコードより前に置く決まりになっている */
 const SDK_URL = 'https://www.youtube.com/game_api/v1'
@@ -52,9 +66,9 @@ function cspPlugin() {
     apply: 'build' as const,
     transformIndexHtml(html: string) {
       let out = html
-      if (PLAYABLES) {
+      if (STANDALONE) {
         // リンクのプレビュー用のタグは、公開先のドメインを絶対 URL で書いている。
-        // ゲームルームでは配信元が違うので意味がなく、絶対パス禁止の要件にも触れる。
+        // 配信元が違う場では意味がなく、ゲームルームでは絶対パス禁止の要件にも触れる。
         // 属性が複数行に折り返されている場合も拾えるように、タグ全体で見る
         // （[^>]* は改行も含むので、折り返しをまたいで一致する）
         out = out.replace(/^[ \t]*<meta\b[^>]*(?:og:|twitter:)[^>]*>\n?/gm, '')
@@ -71,27 +85,27 @@ function cspPlugin() {
 
 export default defineConfig({
   // ゲームルームは絶対パスを禁じている（MUST）。相対で吐く
-  base: PLAYABLES ? './' : BASE,
-  // ゲームルーム向けには public/ を持ち込まない。
+  base: STANDALONE ? './' : BASE,
+  // 単体配布では public/ を持ち込まない。
   // アイコンもプレビュー画像も Service Worker も、あちらでは使われない。
   // バンドルは index.html と assets だけになる
-  publicDir: PLAYABLES ? false : 'public',
+  publicDir: STANDALONE ? false : 'public',
   resolve: {
     // PWA プラグインを外すと virtual:pwa-register が解決できなくなるので、
     // 何もしない実装に差し替える
-    alias: PLAYABLES ? { 'virtual:pwa-register': '/src/platform/pwa-register-stub.ts' } : {},
+    alias: STANDALONE ? { 'virtual:pwa-register': '/src/platform/pwa-register-stub.ts' } : {},
   },
   build: {
     target: 'es2022',
-    // ゲームルーム向けはバンドルに含まれるファイル数と容量を絞る
-    sourcemap: !PLAYABLES,
-    outDir: PLAYABLES ? 'dist-playables' : 'dist',
+    // 単体配布はバンドルに含まれるファイル数と容量を絞る
+    sourcemap: !STANDALONE,
+    outDir: PLAYABLES ? 'dist-playables' : ITCH ? 'dist-itch' : 'dist',
     emptyOutDir: true,
   },
   plugins: [
     cspPlugin(),
-    // ゲームルームでは配信も更新も向こうが持っているので Service Worker は入れない
-    ...(PLAYABLES
+    // 単体配布では配信も更新も向こうが持っているので Service Worker は入れない
+    ...(STANDALONE
       ? []
       : [
           VitePWA({

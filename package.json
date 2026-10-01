@@ -23,7 +23,11 @@
     "verify": "npm run check && npm run build && npm run e2e",
     "build:playables": "tsc --noEmit && PLAYABLES=1 vite build",
     "preview:playables": "vite preview --outDir dist-playables",
-    "check:playables": "npm run build:playables && node tools/check-playables.mjs"
+    "check:playables": "npm run build:playables && node tools/check-playables.mjs",
+    "build:itch": "tsc --noEmit && ITCH=1 vite build",
+    "preview:itch": "vite preview --outDir dist-itch",
+    "check:itch": "npm run build:itch && node tools/check-itch.mjs",
+    "package:itch": "npm run check:itch && rm -f bomb-sorter-itch.zip && cd dist-itch && zip -qr ../bomb-sorter-itch.zip . -x '.*' && cd .. && ls -l bomb-sorter-itch.zip"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

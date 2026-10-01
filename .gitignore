@@ -2,6 +2,9 @@
 node_modules
 dist
 dist-playables
+dist-itch
+# itch.io へ上げる zip（npm run package:itch が作る）
+bomb-sorter-itch.zip
 dist-ssr
 dev-dist
 *.local

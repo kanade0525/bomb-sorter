@@ -111,6 +111,9 @@ manifest の `start_url` がずれる類の事故が構造的に起きません�
 | `npm run verify`          | check → build → e2e を一気に                                    |
 | `npm run build:playables` | YouTube ゲームルーム向けのビルド（相対パス・SDK 同梱・SW なし） |
 | `npm run check:playables` | 上をビルドして、公開されている認定要件と突き合わせる            |
+| `npm run build:itch`      | itch.io 向けのビルド（相対パス・SW なし・SDK なし）             |
+| `npm run check:itch`      | 上をビルドして、itch.io の置かれ方を壊していないか見る          |
+| `npm run package:itch`    | 検査まで通してから、そのまま上げられる zip を作る               |
 
 ### URL で挙動を変えられるもの（検分用）
 
@@ -222,6 +225,26 @@ rAF に任せると CI の負荷でタイミングがぶれて必ず不安定に
 素のウェブとして動くので、ゲームルーム向けビルドも手元でそのまま遊べます。
 
 成果物は **3 ファイル・62 KiB** です。
+
+応募の手順（人が手を動かす順番、フォームの場所、どの設問にどこを貼るか）は
+[`docs/submission/youtube-playables-apply-ja.md`](docs/submission/youtube-playables-apply-ja.md)
+に日本語でまとめてあります。
+
+## itch.io 向け
+
+```bash
+npm run package:itch   # 検査まで通して bomb-sorter-itch.zip を作る
+```
+
+できた zip を itch.io の新規プロジェクトに「HTML」として上げるだけです。審査はありません。
+
+ゲームルーム向けと同じく、相対パスで吐き、Service Worker も public/ も含めません。
+itch.io は zip の中身を `…/html/<番号>/` のような深い場所に置き、**別ドメインの iframe の中で**
+動かすためです。違いは SDK を読み込まない点だけで、場の判定は
+[`src/platform/host.ts`](src/platform/host.ts) が自動で素のウェブ側に倒れます。
+
+Service Worker を外しているのは容量のためではありません。共有ドメインの配下に
+他人のゲームと並んで置かれるので、登録してもスコープが噛み合わないからです。
 
 ## ライセンス
 
